@@ -44,40 +44,15 @@ GOOGLE_NEWS_PRIORITY = 1
 SOURCE_TYPE_ORDER = {'authoritative_rss': 0, 'scraper': 1, 'google_news': 2, 'unknown': 99}
 
 # --- (2) 配置网站展示的分类及用于内容匹配的核心关键词 ---
-# 注意：这里的 keywords 现在主要用于内容分类匹配，需要更精准地反映分类主题
 CATEGORIES_CONFIG = {
-    "最新研究": {
-        "keywords": ["研究", "发现", "论文", "期刊", "科学", "实验", "机制", "突破", "基因", "细胞", "分子", "信号", "靶点", "会议摘要", "GLP-1", "SGLT2", "β细胞", "胰岛素抵抗", "PubMed", "Nature", "Lancet", "Cell", "NEJM", "JAMA"],
-        "emoji": "🔬"
-    },
-    "治疗进展": {
-        "keywords": ["治疗", "疗法", "新药", "药物", "临床试验", "上市", "批准", "适应症", "医疗器械", "设备", "CGM", "连续血糖监测", "胰岛素泵", "人工智能诊疗", "AI", "达格列净", "司美格鲁肽", "替尔泊肽", "胰岛素"],
-        "emoji": "💊"
-    },
-    "饮食与营养": {
-        "keywords": ["饮食", "营养", "食谱", "食材", "膳食", "碳水化合物", "蛋白质", "脂肪", "纤维", "低GI", "血糖生成指数", "热量", "卡路里", "维生素", "矿物质", "食疗", "营养师", "健康饮食", "间歇性断食"],
-        "emoji": "🥗"
-    },
-    "预防与生活方式": {
-        "keywords": ["预防", "生活方式", "运动", "锻炼", "健身", "睡眠", "减重", "减肥", "体重管理", "控糖", "血糖管理", "早期筛查", "风险评估", "健康习惯", "糖耐量", "体脂", "步数", "干预"],
-        "emoji": "🏃‍♀️"
-    },
-    "并发症管理": {
-        "keywords": ["并发症", "糖尿病足", "足部护理", "视网膜病变", "糖网病", "眼底", "肾病", "肾脏", "尿蛋白", "微量白蛋白", "神经病变", "心血管", "中风", "心脏病", "微血管", "管理", "监测", "治疗"],
-        "emoji": "🩺"
-    },
-    "患者故事与心理支持": {
-        "keywords": ["患者", "糖友", "故事", "经验", "分享", "心路历程", "心理", "情绪", "焦虑", "抑郁", "压力", "应对", "支持", "互助", "社区", "论坛", "问答", "家庭", "共鸣"],
-        "emoji": "😊"
-    },
-    "政策/医保信息": {
-        "keywords": ["政策", "法规", "医保", "报销", "国家药监局", "NMPA", "FDA", "MHRA", "卫生健康委", "卫健委", "指南", "标准", "社区管理", "慢病管理", "公共卫生", "纳保", "目录"],
-        "emoji": "📄"
-    },
-    "综合资讯": { # 新增一个“兜底”分类
-        "keywords": [], # 没有特定关键词，用于存放无法明确分类的文章
-        "emoji": "📰"
-    }
+    "最新研究": {"keywords": ["研究", "发现", "论文", "期刊", "科学", "实验", "机制", "突破", "基因", "细胞", "分子", "信号", "靶点", "会议摘要", "GLP-1", "SGLT2", "β细胞", "胰岛素抵抗", "PubMed", "Nature", "Lancet", "Cell", "NEJM", "JAMA"], "emoji": "🔬"},
+    "治疗进展": {"keywords": ["治疗", "疗法", "新药", "药物", "临床试验", "上市", "批准", "适应症", "医疗器械", "设备", "CGM", "连续血糖监测", "胰岛素泵", "人工智能诊疗", "AI", "达格列净", "司美格鲁肽", "替尔泊肽", "胰岛素"], "emoji": "💊"},
+    "饮食与营养": {"keywords": ["饮食", "营养", "食谱", "食材", "膳食", "碳水化合物", "蛋白质", "脂肪", "纤维", "低GI", "血糖生成指数", "热量", "卡路里", "维生素", "矿物质", "食疗", "营养师", "健康饮食", "间歇性断食"], "emoji": "🥗"},
+    "预防与生活方式": {"keywords": ["预防", "生活方式", "运动", "锻炼", "健身", "睡眠", "减重", "减肥", "体重管理", "控糖", "血糖管理", "早期筛查", "风险评估", "健康习惯", "糖耐量", "体脂", "步数", "干预"], "emoji": "🏃‍♀️"},
+    "并发症管理": {"keywords": ["并发症", "糖尿病足", "足部护理", "视网膜病变", "糖网病", "眼底", "肾病", "肾脏", "尿蛋白", "微量白蛋白", "神经病变", "心血管", "中风", "心脏病", "微血管", "管理", "监测", "治疗"], "emoji": "🩺"},
+    "患者故事与心理支持": {"keywords": ["患者", "糖友", "故事", "经验", "分享", "心路历程", "心理", "情绪", "焦虑", "抑郁", "压力", "应对", "支持", "互助", "社区", "论坛", "问答", "家庭", "共鸣"], "emoji": "😊"},
+    "政策/医保信息": {"keywords": ["政策", "法规", "医保", "报销", "国家药监局", "NMPA", "FDA", "MHRA", "卫生健康委", "卫健委", "指南", "标准", "社区管理", "慢病管理", "公共卫生", "纳保", "目录"], "emoji": "📄"},
+    "综合资讯": {"keywords": [], "emoji": "📰"}
 }
 
 # --- 帮助函数：规范化标题 ---
@@ -423,41 +398,29 @@ SCRAPER_FUNCTIONS_MAP = {
 
 # --- (C) 动态分类函数 ---
 def determine_best_category(article_obj):
-    """根据文章标题和摘要内容，为其匹配最合适的分类。"""
     title = article_obj.get("title", "")
     snippet = article_obj.get("snippet", "")
-    text_to_analyze = (title + " " + snippet).lower() # 合并标题和摘要，转小写
-
-    best_category = "综合资讯" # 默认分类
+    text_to_analyze = (title + " " + snippet).lower()
+    best_category = "综合资讯"
     highest_score = 0
-
     for category_name, config in CATEGORIES_CONFIG.items():
-        if category_name == "综合资讯": continue # 跳过默认分类
-
+        if category_name == "综合资讯": continue
         keywords = config.get("keywords", [])
         if not keywords: continue
-
         current_score = 0
         for keyword in keywords:
-            # 简单计分：标题中出现关键词得分更高
-            if keyword.lower() in title.lower():
-                current_score += 3 # 标题匹配得3分
-            elif keyword.lower() in snippet.lower():
-                current_score += 1 # 摘要匹配得1分
-
+            if keyword.lower() in title.lower(): current_score += 3
+            elif keyword.lower() in snippet.lower(): current_score += 1
         if current_score > highest_score:
             highest_score = current_score
             best_category = category_name
-
-    # 可以设置一个最低分数阈值，低于则归入“综合资讯”
-    MIN_SCORE_THRESHOLD = 2 # 示例阈值，需要调整
+    MIN_SCORE_THRESHOLD = 2
     if highest_score < MIN_SCORE_THRESHOLD:
-        print(f"      文章 '{title[:30]}...' 未达到分类阈值 ({highest_score})，归入 '综合资讯'")
+        # print(f"      文章 '{title[:30]}...' 未达到分类阈值 ({highest_score})，归入 '综合资讯'") # 日志可能过多
         return "综合资讯"
     else:
         print(f"      文章 '{title[:30]}...' 匹配到分类 '{best_category}' (得分: {highest_score})")
         return best_category
-
 
 # --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data_sorted):
@@ -468,11 +431,12 @@ def generate_html_content(all_news_data_sorted):
         try:
              current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z')
         except Exception as e:
-            print(f"应用时区 ({app_timezone}) 时出错: {e}。将使用默认服务器时间。")
+            # print(f"应用时区 ({app_timezone}) 时出错: {e}。将使用默认服务器时间。")
             current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S (服务器时间)')
 
     current_year = datetime.datetime.now().year
     github_repo_url = f"https://github.com/{os.getenv('GITHUB_REPOSITORY', 'doudou-ux/diabetes-news')}"
+    # --- 注意：f-string 中的 JavaScript 大括号需要转义 ---
     html_output = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -520,51 +484,38 @@ def generate_html_content(all_news_data_sorted):
         </header>
         <div class="tab-buttons-container" id="tabButtons">"""
     first_category = True
-    # 使用 CATEGORIES_CONFIG 的顺序来生成 Tab 按钮，确保包含“综合资讯”
     for category_name_key in CATEGORIES_CONFIG.keys():
         category_config = CATEGORIES_CONFIG.get(category_name_key, {})
         emoji = category_config.get("emoji", "")
         tab_id = "tab-" + html.escape(category_name_key.replace(" ", "-").replace("/", "-").lower())
-        # 默认激活第一个 *有内容* 的 Tab，或者第一个 Tab
         is_active = False
         if first_category:
-             # 检查这个分类是否有文章，或者它是不是唯一的分类
              if category_name_key in all_news_data_sorted and all_news_data_sorted[category_name_key]:
                  is_active = True
-                 first_category = False # 找到第一个有内容的就激活，不再激活后续的
+                 first_category = False 
              elif list(CATEGORIES_CONFIG.keys())[0] == category_name_key and not any(all_news_data_sorted.values()):
-                  is_active = True # 如果所有分类都没内容，也激活第一个
-        
+                  is_active = True 
         active_class = "active" if is_active else ""
-        # 如果分类没有文章，可以考虑不生成按钮或置灰 (这里选择仍然生成)
-        # disabled_attr = "" if category_name_key in all_news_data_sorted and all_news_data_sorted[category_name_key] else " disabled style='opacity: 0.5; cursor: not-allowed;'"
         html_output += f"""<button class="tab-button {active_class}" data-tab-target="#{tab_id}">{emoji} {html.escape(category_name_key)}</button>"""
-        # if first_category and not is_active and category_name_key == list(CATEGORIES_CONFIG.keys())[-1]:
-        #      first_category = False # 确保即使所有分类都为空，也能结束 first_category 状态
 
     html_output += """</div><div id="news-content">"""
-    first_category_content = True # Reset for content panes
+    first_category_content = True 
     if not any(all_news_data_sorted.values()):
         html_output += '<p class="text-center text-gray-500 text-xl py-10">抱歉，目前未能加载到最近一个月相关的糖尿病资讯。</p>'
     else:
-        # 确保按照 CATEGORIES_CONFIG 的顺序生成内容区域
         for category_name_key in CATEGORIES_CONFIG.keys():
-            articles = all_news_data_sorted.get(category_name_key, []) # 从排序后的数据中获取文章，如果分类不存在则为空列表
+            articles = all_news_data_sorted.get(category_name_key, []) 
             category_config = CATEGORIES_CONFIG.get(category_name_key, {})
             emoji = category_config.get("emoji", "")
             tab_id = "tab-" + html.escape(category_name_key.replace(" ", "-").replace("/", "-").lower())
-            
-            # 决定哪个内容区域默认激活
             is_active_content = False
             if first_category_content:
-                 if articles: # 如果这个分类有文章
+                 if articles: 
                       is_active_content = True
-                      first_category_content = False # 激活第一个有内容的
+                      first_category_content = False 
                  elif list(CATEGORIES_CONFIG.keys())[0] == category_name_key and not any(all_news_data_sorted.values()):
-                      is_active_content = True # 如果都为空，激活第一个
-
+                      is_active_content = True 
             active_class = "active" if is_active_content else ""
-
             category_html_content = f"""<div id="{tab_id}" class="tab-content {active_class}"><h2 class="font-semibold category-title-text">{emoji} {html.escape(category_name_key)}</h2>"""
             if not articles:
                 category_html_content += '<p class="text-gray-500">最近一个月暂无该分类下的资讯。</p>'
@@ -581,56 +532,50 @@ def generate_html_content(all_news_data_sorted):
                 category_html_content += "</div>" 
             category_html_content += "</div>"
             html_output += category_html_content
-            # if first_category_content and not is_active_content and category_name_key == list(CATEGORIES_CONFIG.keys())[-1]:
-            #      first_category_content = False # 确保即使所有分类都为空，也能结束 first_category_content 状态
 
-
-    html_output += f"""</div> </div> <footer class="text-center p-6 mt-12 text-gray-600 text-sm border-t border-gray-300"><p>&copy; {current_year} 糖尿病资讯聚合. <a href="{github_repo_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">项目源码</a></p><p class="mt-1">本站内容仅供参考, 不构成医疗建议。</p></footer>
+    # --- 注意：f-string 中的 JavaScript 大括号需要转义 ---
+    html_output += f"""
+        </div> </div> <footer class="text-center p-6 mt-12 text-gray-600 text-sm border-t border-gray-300"><p>&copy; {current_year} 糖尿病资讯聚合. <a href="{github_repo_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">项目源码</a></p><p class="mt-1">本站内容仅供参考, 不构成医疗建议。</p></footer>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {{
+        document.addEventListener('DOMContentLoaded', function () {{ // JS 大括号需要转义
             const tabButtons = document.querySelectorAll('.tab-button');
             const tabContents = document.querySelectorAll('.tab-content');
             if (tabButtons.length > 0 && tabContents.length > 0) {{
-                // Ensure the first active button corresponds to the first active content
                 let firstActiveButton = document.querySelector('.tab-button.active');
                 let firstActiveContent = document.querySelector('.tab-content.active');
 
                 if (!firstActiveButton && tabButtons.length > 0) {{
-                    tabButtons[0].classList.add('active'); // Activate first button if none are active
+                    tabButtons[0].classList.add('active'); 
                     firstActiveButton = tabButtons[0];
                 }}
                 if (!firstActiveContent && firstActiveButton) {{
                     const targetId = firstActiveButton.dataset.tabTarget;
                     const targetContent = document.querySelector(targetId);
                     if (targetContent) {{
-                        targetContent.classList.add('active'); // Activate corresponding content
+                        targetContent.classList.add('active'); 
                     }} else if (tabContents.length > 0) {{
-                         // Fallback: activate the first content pane if target is missing
-                         // This shouldn't happen with correct generation logic
                          tabContents[0].classList.add('active');
                     }}
-                }} else if (firstActiveButton && firstActiveContent) {
-                     // Ensure the active button and content match
-                     if (firstActiveButton.dataset.tabTarget !== '#' + firstActiveContent.id) {
+                }} else if (firstActiveButton && firstActiveContent) {{
+                     if (firstActiveButton.dataset.tabTarget !== '#' + firstActiveContent.id) {{
                           tabContents.forEach(content => content.classList.remove('active'));
                           const targetContent = document.querySelector(firstActiveButton.dataset.tabTarget);
                           if (targetContent) targetContent.classList.add('active');
-                     }
-                }
-
+                     }}
+                }}
 
                 tabButtons.forEach(button => {{
-                    button.addEventListener('click', () => {{
+                    button.addEventListener('click', () => {{ // JS 大括号需要转义
                         tabButtons.forEach(btn => btn.classList.remove('active'));
                         tabContents.forEach(content => content.classList.remove('active'));
                         button.classList.add('active');
                         const targetContentId = button.dataset.tabTarget;
                         const targetContent = document.querySelector(targetContentId);
-                        if (targetContent) {{ targetContent.classList.add('active'); }}
-                    }});
-                }});
+                        if (targetContent) {{ targetContent.classList.add('active'); }} // JS 大括号需要转义
+                    }}); // JS 大括号需要转义
+                }}); // JS 大括号需要转义
             }}
-        }});
+        }}); // JS 大括号需要转义
     </script>
 </body></html>"""
     return html_output
@@ -646,6 +591,7 @@ if __name__ == "__main__":
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
+    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
         needs_translation = feed_info.get("needs_translation", False)
@@ -674,13 +620,13 @@ if __name__ == "__main__":
                    current_priority > unique_articles_candidates[normalized_title]["priority"]:
                     unique_articles_candidates[normalized_title] = {
                         "article_obj": article_obj_for_storage, "priority": current_priority,
-                         # 不再使用 target_categories，将在后面动态分配
                         "url": article_data["url"]
                     }
         time.sleep(1)
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
+    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
         if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP: continue
         fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
@@ -694,7 +640,7 @@ if __name__ == "__main__":
                 if article_data.get("time_struct"):
                     try: time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
                     except: pass
-                else: pass # 移除警告打印，避免过多日志
+                else: pass 
                 article_obj_for_storage = {
                     "title": article_data["title"], "url": article_data["url"], "snippet": article_data["snippet"], 
                     "source": scraper_info["source_override"], "time_display_str": time_display_str, 
@@ -705,17 +651,14 @@ if __name__ == "__main__":
                    current_priority > unique_articles_candidates[normalized_title]["priority"]:
                     unique_articles_candidates[normalized_title] = {
                         "article_obj": article_obj_for_storage, "priority": current_priority,
-                        # 不再使用 target_categories
                         "url": article_data["url"]
                     }
         time.sleep(1)
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
-    # 注意：Google News 现在也只是作为候选池的一部分，不再直接填充分类
     print("\n--- 正在从 Google News RSS 获取补充新闻 (用于全局候选池) ---")
-    combined_google_keywords = " OR ".join([f"({config['keywords']})" for config in CATEGORIES_CONFIG.values() if config['keywords']])
-    # 为避免URL过长，可以只选几个核心分类的关键词，或者只用 "糖尿病"
-    google_search_term = "糖尿病 新闻 OR diabetes news" # 简化搜索词
+    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
+    google_search_term = "糖尿病 新闻 OR diabetes news" 
     print(f"  使用 Google News 搜索词: {google_search_term}")
     google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(google_search_term)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
     raw_articles_from_google = fetch_articles_from_rss(google_news_rss_url, source_name_override=None)
@@ -739,49 +682,40 @@ if __name__ == "__main__":
                GOOGLE_NEWS_PRIORITY > unique_articles_candidates[normalized_title]["priority"]:
                 unique_articles_candidates[normalized_title] = {
                     "article_obj": article_obj_for_storage, "priority": GOOGLE_NEWS_PRIORITY,
-                    # 不再使用 target_categories
                     "url": article_data["url"]
                 }
     time.sleep(1)
 
     # --- 步骤四：动态分类所有候选文章 ---
     print("\n--- 正在对所有候选文章进行动态分类 ---")
+    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
     all_articles_by_site_category_temp = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
-    categorized_urls = set() # 记录已分类文章的URL，避免重复分配
-
+    categorized_urls = set() 
     for candidate_info in unique_articles_candidates.values():
         article_to_categorize = candidate_info["article_obj"]
         article_url = article_to_categorize["url"]
-
-        # 防止同一个 URL 被重复分配（理论上 unique_articles_candidates 已经处理了标题重复）
-        if article_url in categorized_urls:
-            continue
-
+        if article_url in categorized_urls: continue
         best_category = determine_best_category(article_to_categorize)
-        
         if best_category in all_articles_by_site_category_temp:
             all_articles_by_site_category_temp[best_category].append(article_to_categorize)
-            categorized_urls.add(article_url) # 标记此 URL 已被分配
+            categorized_urls.add(article_url) 
         else:
-            # 如果 determine_best_category 返回了一个不在 CATEGORIES_CONFIG 的名字（理论上不应发生）
-            # 或者返回了 None，则放入“综合资讯”
             all_articles_by_site_category_temp["综合资讯"].append(article_to_categorize)
             categorized_urls.add(article_url)
 
     # --- 步骤五：对每个分类的文章按来源类型和日期排序并截取 ---
     print("\n--- 正在对各分类新闻进行排序和截取 ---")
+    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
     all_articles_by_site_category_final_sorted = {}
     for category_name, articles_list in all_articles_by_site_category_temp.items():
         articles_list.sort(key=lambda x: (
             SOURCE_TYPE_ORDER.get(x.get("source_type", "unknown"), 99),
             -(time.mktime(x["time_struct"]) if x.get("time_struct") else -float('inf'))
         ))
-        # 确保即使分类为空，也在最终字典中存在，以便生成 Tab 按钮
         all_articles_by_site_category_final_sorted[category_name] = articles_list[:MAX_ARTICLES_PER_CATEGORY]
         print(f"  分类 '{category_name}' 排序并截取后有 {len(all_articles_by_site_category_final_sorted[category_name])} 条新闻。")
         if all_articles_by_site_category_final_sorted[category_name]:
             print(f"    排序后前几条来源类型: {[a.get('source_type', 'unknown') for a in all_articles_by_site_category_final_sorted[category_name][:5]]}")
-
 
     # --- (6) 生成最终的HTML ---
     final_html = generate_html_content(all_articles_by_site_category_final_sorted)
@@ -797,4 +731,3 @@ if __name__ == "__main__":
         print(f"\n生成过程中发生未知错误: {e}")
 
     print("资讯网页生成完毕。")
-
