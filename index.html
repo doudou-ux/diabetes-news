@@ -10,8 +10,10 @@
         body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
         .news-card { transition: transform 0.3s ease, box-shadow 0.3s ease; display: flex; flex-direction: column; justify-content: space-between; height: 100%; background-color: #ffffff; border-radius: 0.5rem; }
         .news-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
-        .category-section { background-color: #ffffff; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); padding: 1.25rem; }
-        @media (min-width: 768px) { .category-section { padding: 2rem; } }
+        /* .category-section (现在是 .tab-content) 的样式可以保持或调整 */
+        .tab-content { background-color: #ffffff; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); padding: 1.25rem; display: none; }
+        .tab-content.active { display: block; } /* Active tab content is visible */
+        @media (min-width: 768px) { .tab-content { padding: 2rem; } }
         .category-title-text { border-bottom: 3px solid #3b82f6; padding-bottom: 0.75rem; margin-bottom: 1.75rem; color: #1e40af; font-size: 1.5rem; }
         @media (min-width: 768px) { .category-title-text { font-size: 1.875rem; } }
         .news-item-link { color: #2563eb; text-decoration: none; font-weight: 600; }
@@ -29,18 +31,68 @@
         .loader { border: 5px solid #f3f3f3; border-radius: 50%; border-top: 5px solid #3498db; width: 50px; height: 50px; -webkit-animation: spin 1s linear infinite; animation: spin 1s linear infinite; margin: 20px auto; }
         @-webkit-keyframes spin { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Tab button styles */
+        .tab-buttons-container { 
+            display: flex; 
+            flex-wrap: wrap; /* Allow tabs to wrap on smaller screens */
+            margin-bottom: 1.5rem; 
+            border-bottom: 2px solid #d1d5db; /* gray-300 */
+        }
+        .tab-button {
+            padding: 0.75rem 1.25rem; /* py-3 px-5 */
+            margin-right: 0.5rem; /* mr-2 */
+            margin-bottom: -2px; /* Overlap with bottom border */
+            border: 2px solid transparent;
+            border-bottom: none;
+            border-top-left-radius: 0.375rem; /* rounded-t-md */
+            border-top-right-radius: 0.375rem; /* rounded-t-md */
+            cursor: pointer;
+            font-weight: 500; /* font-medium */
+            color: #4b5563; /* gray-600 */
+            background-color: #f9fafb; /* gray-50 */
+            transition: all 0.3s ease;
+        }
+        .tab-button:hover {
+            color: #1f2937; /* gray-800 */
+            background-color: #f3f4f6; /* gray-100 */
+        }
+        .tab-button.active {
+            color: #1d4ed8; /* blue-700 */
+            background-color: #ffffff; /* white */
+            border-color: #d1d5db; /* gray-300 */
+            border-bottom-color: #ffffff; /* white, to make it look connected to content */
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div class="container mx-auto main-container">
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
-            <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">2025年05月07日 18:48:07 UTC+08:00</span>）</p>
+            <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">2025年05月07日 18:53:31 UTC+08:00</span>）</p>
             <p class="text-sm text-gray-500 mt-2">资讯综合来源</p>
         </header>
-        <div id="news-content" class="space-y-12">
-            
-            <section class="category-section">
+
+        <div class="tab-buttons-container" id="tabButtons">
+
+            <button class="tab-button active" data-tab-target="#tab-最新研究">🔬 最新研究</button>
+        
+            <button class="tab-button " data-tab-target="#tab-治疗进展">💊 治疗进展</button>
+        
+            <button class="tab-button " data-tab-target="#tab-饮食与营养">🥗 饮食与营养</button>
+        
+            <button class="tab-button " data-tab-target="#tab-预防与生活方式">🏃‍♀️ 预防与生活方式</button>
+        
+            <button class="tab-button " data-tab-target="#tab-并发症管理">🩺 并发症管理</button>
+        
+            <button class="tab-button " data-tab-target="#tab-患者故事与心理支持">😊 患者故事与心理支持</button>
+        
+            <button class="tab-button " data-tab-target="#tab-政策-医保信息">📄 政策/医保信息</button>
+        
+        </div>
+
+        <div id="news-content">
+
+            <div id="tab-最新研究" class="tab-content active">
                 <h2 class="font-semibold category-title-text">🔬 最新研究</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
                     <div class="news-card shadow-md hover:shadow-lg p-5">
@@ -57,81 +109,21 @@
                             <span class="time-tag">2025-04-18</span>
                         </div>
                     </div>
-                    </div></section>
-            <section class="category-section">
+                    </div></section></div>
+            <div id="tab-治疗进展" class="tab-content ">
                 <h2 class="font-semibold category-title-text">💊 治疗进展</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
                     <div class="news-card shadow-md hover:shadow-lg p-5">
                         <div class="card-content">
                             <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMiXEFVX3lxTE1pSUdMMk9DOEV6LUc2cFZLZlhEbG1zWmgzeUtqci11UnFKWkE4LTBwV3lWOEc4Z3pKSGV3c1p0clR4SmdvaWczR1dIY2MwTjd4czgydms0cXUyQ2tF?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    “减肥神药”司美格鲁肽再登《新英格兰医学杂志》，可停止甚至逆转严重脂肪肝- 医药产业专区 - 生物谷
+                                <a href="https://news.google.com/rss/articles/CBMib0FVX3lxTE9xRjNzTDlyZHAwaTFreWRLYjBPTkdLUGdBQ09VdzJFVVg1ZWltTy14VHRJay1YelFFbER2Nmt2NUJqSi14ZFlUZk56cGdmdTFDaUx0UjR6VFRBU2FQS2wyak1BRVVZM05DaGtDQlM1SQ?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    诺和诺德一季度减重版司美格鲁肽收入增83%，美国市场竞争激烈下调全年业绩预期 - 新浪财经
                                 </a>
                             </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">“减肥神药”司美格鲁肽再登《新英格兰医学杂志》，可停止甚至逆转严重脂肪肝- 医药产业专区  生物谷</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">生物谷</span>
-                            <span class="time-tag">2025-05-07</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMifkFVX3lxTE0tdHlwYkNXSy00OV9ZdVp6TzVySEdxTEdUTl8yNWJ4aWVXNzJsNW5DNUx3RHpPTm5VRTlOZkxSMjJ1ME03YlA5T09jZ0xOdWFtenFYOUFGWDl4TmozUF9YMm1XN0tvd2RIcUxSVktvRG1uaVFQR3JOdk53ejYwUQ?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    诺和诺德2025Q1：肥胖业务收入增长65%，司美格鲁肽收入超过K药 - ByDrug
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">诺和诺德2025Q1：肥胖业务收入增长65%，司美格鲁肽收入超过K药  ByDrug</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">ByDrug</span>
-                            <span class="time-tag">2025-05-07</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMibkFVX3lxTE0ydmlicmYwaHdaVml6SkFCbjhvN2VPSk5HVENYYk5EUC11ckoyc0RpUXJ4WkdlMHdKeV9Mb2VZdmx5aUQ1bDMzc2V0b3ZmVEwyY1Y5NThRcWVYbVJYQmpQV1BzUWZwNC0zZTNQT19n?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    新的全球“药王”来了！司美格鲁肽一季度收入超过K药 - 新浪财经
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">新的全球“药王”来了！司美格鲁肽一季度收入超过K药  新浪财经</p>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">诺和诺德一季度减重版司美格鲁肽收入增83%，美国市场竞争激烈下调全年业绩预期  新浪财经</p>
                         </div>
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
                             <span class="source-tag">新浪财经</span>
-                            <span class="time-tag">2025-05-07</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMidkFVX3lxTE9TTWh1blp0QlhYWHhYOEtQWnloM3R1X1JiSGl1NmxKc2lnMjk2c3JQNWlMTV91bUYyeVdlcGM1NkZscUNDZm9qcmJkMnpReENTYXJlbzc4NTM5MFBWNFZVU0FqRXVoVmNHb3Vta3Npc0ZNSEZIbkE?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    CMA CGM Vessel Classed with Indian Register of Shipping - 信德海事
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">CMA CGM Vessel Classed with Indian Register of Shipping  信德海事</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">信德海事</span>
-                            <span class="time-tag">2025-05-06</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMifkFVX3lxTE5FUGxTRGQ4aWQ5emg2WXlfQzE5bWo0eldVWEhSM0RMN3ZEcXhGYlhRMnlYMjRxaGpEaVZoNThJdWZQX3B4RVJfY2dGNzRhWUNrdnVzMFJRQzNVb3RncVowbkUwVjN3VlVOR3BkRkVfaHlrTVZSWFdRbWpTV0JWdw?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    诺和诺德终止开发每周1次司美格鲁肽口服片剂 - ByDrug
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">诺和诺德终止开发每周1次司美格鲁肽口服片剂  ByDrug</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">ByDrug</span>
                             <span class="time-tag">2025-05-07</span>
                         </div>
                     </div>
@@ -154,21 +146,6 @@
                     <div class="news-card shadow-md hover:shadow-lg p-5">
                         <div class="card-content">
                             <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMiekFVX3lxTFBGMWFaYTBXclV4czdjVGdVeWF4Ql9EWURWdzUyWkt4bzhvRVQyUndjdHJ5OG1rSWg2R1BobTFpU3Y2Tk1kakFra2ZvUEtwbFlyUzFvYzNpOVNHWDJBNEhWY2hySVZtUm90RHEtU2RRRWlVSmV6SW9sTHJB?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    口服司美格鲁肽25mg减重适应症申报上市 - 中国医药创新促进会
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">口服司美格鲁肽25mg减重适应症申报上市  中国医药创新促进会</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">中国医药创新促进会</span>
-                            <span class="time-tag">2025-04-26</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
                                 <a href="https://news.google.com/rss/articles/CBMibkFVX3lxTFBuTC0zR0hKYTVlUWwzckF2QzBhOG5qWHktT1JhamdKWjFaaHpNeW9pa3hyLUNhNDVlVVhPQUJQem8yNWctTjdxRXA5eVduczU0QkRReENoVlBGZTZONTJMYWI5c1ZZS212Snd2VC13?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
                                     一季度药物市场激战：司美格鲁肽收入超80亿美元力压K药，预定“药王”桂冠 - 新浪财经
                                 </a>
@@ -178,6 +155,81 @@
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
                             <span class="source-tag">新浪财经</span>
                             <span class="time-tag">2025-05-07</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMibkFVX3lxTE0ydmlicmYwaHdaVml6SkFCbjhvN2VPSk5HVENYYk5EUC11ckoyc0RpUXJ4WkdlMHdKeV9Mb2VZdmx5aUQ1bDMzc2V0b3ZmVEwyY1Y5NThRcWVYbVJYQmpQV1BzUWZwNC0zZTNQT19n?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    新的全球“药王”来了！司美格鲁肽一季度收入超过K药 - 新浪财经
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">新的全球“药王”来了！司美格鲁肽一季度收入超过K药  新浪财经</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">新浪财经</span>
+                            <span class="time-tag">2025-05-07</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMiXEFVX3lxTE1pSUdMMk9DOEV6LUc2cFZLZlhEbG1zWmgzeUtqci11UnFKWkE4LTBwV3lWOEc4Z3pKSGV3c1p0clR4SmdvaWczR1dIY2MwTjd4czgydms0cXUyQ2tF?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    “减肥神药”司美格鲁肽再登《新英格兰医学杂志》，可停止甚至逆转严重脂肪肝- 医药产业专区 - 生物谷
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">“减肥神药”司美格鲁肽再登《新英格兰医学杂志》，可停止甚至逆转严重脂肪肝- 医药产业专区  生物谷</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">生物谷</span>
+                            <span class="time-tag">2025-05-07</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMifkFVX3lxTE5FUGxTRGQ4aWQ5emg2WXlfQzE5bWo0eldVWEhSM0RMN3ZEcXhGYlhRMnlYMjRxaGpEaVZoNThJdWZQX3B4RVJfY2dGNzRhWUNrdnVzMFJRQzNVb3RncVowbkUwVjN3VlVOR3BkRkVfaHlrTVZSWFdRbWpTV0JWdw?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    诺和诺德终止开发每周1次司美格鲁肽口服片剂 - ByDrug
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">诺和诺德终止开发每周1次司美格鲁肽口服片剂  ByDrug</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">ByDrug</span>
+                            <span class="time-tag">2025-05-07</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMifkFVX3lxTE0tdHlwYkNXSy00OV9ZdVp6TzVySEdxTEdUTl8yNWJ4aWVXNzJsNW5DNUx3RHpPTm5VRTlOZkxSMjJ1ME03YlA5T09jZ0xOdWFtenFYOUFGWDl4TmozUF9YMm1XN0tvd2RIcUxSVktvRG1uaVFQR3JOdk53ejYwUQ?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    诺和诺德2025Q1：肥胖业务收入增长65%，司美格鲁肽收入超过K药 - ByDrug
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">诺和诺德2025Q1：肥胖业务收入增长65%，司美格鲁肽收入超过K药  ByDrug</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">ByDrug</span>
+                            <span class="time-tag">2025-05-07</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMidkFVX3lxTE9TTWh1blp0QlhYWHhYOEtQWnloM3R1X1JiSGl1NmxKc2lnMjk2c3JQNWlMTV91bUYyeVdlcGM1NkZscUNDZm9qcmJkMnpReENTYXJlbzc4NTM5MFBWNFZVU0FqRXVoVmNHb3Vta3Npc0ZNSEZIbkE?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    CMA CGM Vessel Classed with Indian Register of Shipping - 信德海事
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">CMA CGM Vessel Classed with Indian Register of Shipping  信德海事</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">信德海事</span>
+                            <span class="time-tag">2025-05-06</span>
                         </div>
                     </div>
                     
@@ -199,22 +251,22 @@
                     <div class="news-card shadow-md hover:shadow-lg p-5">
                         <div class="card-content">
                             <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMiekFVX3lxTE5pSHMwSHFxbGFIRWE5ZWloYnJUb3pjekljLUVpeGRFOVZoM01xZ1E1Yl9pRTlrZDJLYXBKczNhZWpERjluZHlQUnhjbFZXUnUzX1dhbGtkZk1RQVlNWXljd0NKVXYwdlJkeHlRVEtpeGQtbWIyUGFUMDhB?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    Biolinq：颠覆雅培、德康的CGM完成7.3亿融资 - 中国医药创新促进会
+                                <a href="https://news.google.com/rss/articles/CBMiVkFVX3lxTE1DdUhieDdRc2p6dExiU3VPUmNQYUtTbDl1OVJkenhkdVNLLWFLSzRzcVp2OEVFSnF2UGtHWDNTZVNvX0Q5cG1tbEJmX2xQblByOWljSzZB?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    达格列净专利全球遇挑战，英国法院撤销关键专利 - 腾讯新闻
                                 </a>
                             </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">Biolinq：颠覆雅培、德康的CGM完成7.3亿融资  中国医药创新促进会</p>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">达格列净专利全球遇挑战，英国法院撤销关键专利  腾讯新闻</p>
                         </div>
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">中国医药创新促进会</span>
-                            <span class="time-tag">2025-04-28</span>
+                            <span class="source-tag">腾讯新闻</span>
+                            <span class="time-tag">2025-04-29</span>
                         </div>
                     </div>
-                    </div></section>
-            <section class="category-section">
+                    </div></section></div>
+            <div id="tab-饮食与营养" class="tab-content ">
                 <h2 class="font-semibold category-title-text">🥗 饮食与营养</h2>
-            <p class="text-gray-500">最近一个月暂无该分类下的资讯。</p></section>
-            <section class="category-section">
+            <p class="text-gray-500">最近一个月暂无该分类下的资讯。</p></section></div>
+            <div id="tab-预防与生活方式" class="tab-content ">
                 <h2 class="font-semibold category-title-text">🏃‍♀️ 预防与生活方式</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
                     <div class="news-card shadow-md hover:shadow-lg p-5">
@@ -231,37 +283,22 @@
                             <span class="time-tag">2025-04-10</span>
                         </div>
                     </div>
-                    </div></section>
-            <section class="category-section">
+                    </div></section></div>
+            <div id="tab-并发症管理" class="tab-content ">
                 <h2 class="font-semibold category-title-text">🩺 并发症管理</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
                     <div class="news-card shadow-md hover:shadow-lg p-5">
                         <div class="card-content">
                             <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMiaEFVX3lxTE96X0YxdlZhXzVjd19iRERwOFVZak5IT3ZEcWZKSktKT2E4UGIxTjFWaVJqSmhlYnlEbkJrb0FuRUlkWVM3cFFEZmtnUG03RVhqS2hoN1JWWlViZmdlNkhDY1NXM1hTLTAt?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    六旬老伯热水泡脚竟导致大脚趾截肢糖尿病足患者要注意这些-新闻中心 - 中国宁波网
+                                <a href="https://news.google.com/rss/articles/CBMiVkFVX3lxTE5BLUM0OHc3ZzdMT1FHT3Y3WVlvZnNmZTN4SnlOdjZ6bW91M2JTMmhZQXNpVWl4Q1FKT05WaHZ5alJ0eXl4QUl2VVprSUNyZVFlR2JPMjln?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    北大医院肾内科研究：GLP-1受体激动剂在IgA肾病和糖尿病肾病发展中具有潜在保护作用 - 腾讯新闻
                                 </a>
                             </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">六旬老伯热水泡脚竟导致大脚趾截肢糖尿病足患者要注意这些-新闻中心  中国宁波网</p>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">北大医院肾内科研究：GLP-1受体激动剂在IgA肾病和糖尿病肾病发展中具有潜在保护作用  腾讯新闻</p>
                         </div>
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">中国宁波网</span>
-                            <span class="time-tag">2025-05-02</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMifEFVX3lxTFBJcExDZk1fX3RYRmUtc0tXV1gwOWNlMS1GWmg0WDgyMUJnZ2hlbjFLdzJLRHE5YkluR3lpM0VpNVlMVFZvUy14aXpsR0M3dXJUaExwd1AtbjgyYzZwdTIyYTgtdmRBandnaGg2YTEteVhnMWQyQzFMcjlsU1Y?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    糖尿病足防治与护理 - gstv.com.cn
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">糖尿病足防治与护理  gstv.com.cn</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">gstv.com.cn</span>
-                            <span class="time-tag">2025-04-17</span>
+                            <span class="source-tag">腾讯新闻</span>
+                            <span class="time-tag">2025-05-05</span>
                         </div>
                     </div>
                     
@@ -283,30 +320,15 @@
                     <div class="news-card shadow-md hover:shadow-lg p-5">
                         <div class="card-content">
                             <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMiVkFVX3lxTE5BLUM0OHc3ZzdMT1FHT3Y3WVlvZnNmZTN4SnlOdjZ6bW91M2JTMmhZQXNpVWl4Q1FKT05WaHZ5alJ0eXl4QUl2VVprSUNyZVFlR2JPMjln?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    北大医院肾内科研究：GLP-1受体激动剂在IgA肾病和糖尿病肾病发展中具有潜在保护作用 - 腾讯新闻
+                                <a href="https://news.google.com/rss/articles/CBMiaEFVX3lxTE96X0YxdlZhXzVjd19iRERwOFVZak5IT3ZEcWZKSktKT2E4UGIxTjFWaVJqSmhlYnlEbkJrb0FuRUlkWVM3cFFEZmtnUG03RVhqS2hoN1JWWlViZmdlNkhDY1NXM1hTLTAt?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    六旬老伯热水泡脚竟导致大脚趾截肢糖尿病足患者要注意这些-新闻中心 - 中国宁波网
                                 </a>
                             </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">北大医院肾内科研究：GLP-1受体激动剂在IgA肾病和糖尿病肾病发展中具有潜在保护作用  腾讯新闻</p>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">六旬老伯热水泡脚竟导致大脚趾截肢糖尿病足患者要注意这些-新闻中心  中国宁波网</p>
                         </div>
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">腾讯新闻</span>
-                            <span class="time-tag">2025-05-05</span>
-                        </div>
-                    </div>
-                    
-                    <div class="news-card shadow-md hover:shadow-lg p-5">
-                        <div class="card-content">
-                            <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMinwRBVV95cUxNUXVtc2NLYy1EVExmTnFXLUFXS3JqMUlhd0hveUVQeXhIMXhRSVE5bF82VklnV1E3ODAxN2ZOaDRvdGxMY3d5VVd0ekhROVFiR3J4WjZOMHJFNDBNT3l2SnpCcVV4akVWMXRZS244Tm9tQnBVYkNTS0pSR25vdW5WV1dTVV9VZGpGMWJJWEUzOHFjRUNzalNFMGRydVdtNE5rZjYwenNQbWNzNEpBc1d3TnBORDh6eXVaRFVMNHFqTnh4N3F1dkZ0bjRNNnluY3dqQTYwZ0lESEp5bUw0RHBaTzlYVWFBdEFxbHZjMUNXSVRSY0p1eG9rVkRnc0dEYUkyc3RTMldxS3RuaXVsd3ZOenduUGhva1NLdDN1cGN3dWRrRHNLb042TWUwb2tmQVYtSHFUTTl0VmFMU3Npa3pYdWpqOFR4RmdfUmNVbUJIaHlNb29CZ0pkd2pnNlhTS00tRTdPdmd5V1Q3SnB5ak5KdzlKbTZlREpBcFdxMnFCMmRhRVU3cS16eXpXUTg2WTdoYXZvNkFJWktxVnV1MVllUXZmNlRkQTBPLTNtYXc1a3d3a3hycTFteU9TeF9zQmZqNEZJZlhDbHN1LVQxcWJZMElHN3hwdzVURGJCRmdSaElzSHBKUkt4YjkwVGdNazNQM1RremJpeE5ZbUZ4OTFLOU9laFpxcFI1eDl4QnhYTXQ5eFlxeFBVZXplZ3BlMVk?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    Vantage Biosciences 完成口服 VX-01 治疗非增殖性糖尿病视网膜病变第 2 期临床研究首例患者的给药 - GlobeNewswire
-                                </a>
-                            </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">Vantage Biosciences 完成口服 VX-01 治疗非增殖性糖尿病视网膜病变第 2 期临床研究首例患者的给药  GlobeNewswire</p>
-                        </div>
-                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">GlobeNewswire</span>
-                            <span class="time-tag">2025-04-12</span>
+                            <span class="source-tag">中国宁波网</span>
+                            <span class="time-tag">2025-05-02</span>
                         </div>
                     </div>
                     
@@ -343,15 +365,15 @@
                     <div class="news-card shadow-md hover:shadow-lg p-5">
                         <div class="card-content">
                             <h3 class="text-lg mb-2">
-                                <a href="https://news.google.com/rss/articles/CBMibkFVX3lxTE55OExOcjlpNmUxRVA1SDlxRHRiSzBVLTVvaVRwaEF6WmRMYjc3M3ZockNtcFNnVEFGZTVQUEpEN2hVOXJ3eWhESlgzLUZreGcwa0d6aHdUVXBma1BlckhYMjFPb0tLZFQtal9XWjlB?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
-                                    宁波市中医院创新研究登顶中科院1区：温肾健脾汤防治糖尿病肾病，肾脏保护机制大揭秘！-MedSci.cn - 梅斯医学 MedSci
+                                <a href="https://news.google.com/rss/articles/CBMifEFVX3lxTFBJcExDZk1fX3RYRmUtc0tXV1gwOWNlMS1GWmg0WDgyMUJnZ2hlbjFLdzJLRHE5YkluR3lpM0VpNVlMVFZvUy14aXpsR0M3dXJUaExwd1AtbjgyYzZwdTIyYTgtdmRBandnaGg2YTEteVhnMWQyQzFMcjlsU1Y?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    糖尿病足防治与护理 - gstv.com.cn
                                 </a>
                             </h3>
-                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">宁波市中医院创新研究登顶中科院1区：温肾健脾汤防治糖尿病肾病，肾脏保护机制大揭秘！-MedSci.cn  梅斯医学 MedSci</p>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">糖尿病足防治与护理  gstv.com.cn</p>
                         </div>
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">梅斯医学 MedSci</span>
-                            <span class="time-tag">2025-04-12</span>
+                            <span class="source-tag">gstv.com.cn</span>
+                            <span class="time-tag">2025-04-17</span>
                         </div>
                     </div>
                     
@@ -369,36 +391,77 @@
                             <span class="time-tag">2025-04-16</span>
                         </div>
                     </div>
-                    </div></section>
-            <section class="category-section">
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMibkFVX3lxTE55OExOcjlpNmUxRVA1SDlxRHRiSzBVLTVvaVRwaEF6WmRMYjc3M3ZockNtcFNnVEFGZTVQUEpEN2hVOXJ3eWhESlgzLUZreGcwa0d6aHdUVXBma1BlckhYMjFPb0tLZFQtal9XWjlB?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    宁波市中医院创新研究登顶中科院1区：温肾健脾汤防治糖尿病肾病，肾脏保护机制大揭秘！-MedSci.cn - 梅斯医学 MedSci
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">宁波市中医院创新研究登顶中科院1区：温肾健脾汤防治糖尿病肾病，肾脏保护机制大揭秘！-MedSci.cn  梅斯医学 MedSci</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">梅斯医学 MedSci</span>
+                            <span class="time-tag">2025-04-12</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="https://news.google.com/rss/articles/CBMinwRBVV95cUxNUXVtc2NLYy1EVExmTnFXLUFXS3JqMUlhd0hveUVQeXhIMXhRSVE5bF82VklnV1E3ODAxN2ZOaDRvdGxMY3d5VVd0ekhROVFiR3J4WjZOMHJFNDBNT3l2SnpCcVV4akVWMXRZS244Tm9tQnBVYkNTS0pSR25vdW5WV1dTVV9VZGpGMWJJWEUzOHFjRUNzalNFMGRydVdtNE5rZjYwenNQbWNzNEpBc1d3TnBORDh6eXVaRFVMNHFqTnh4N3F1dkZ0bjRNNnluY3dqQTYwZ0lESEp5bUw0RHBaTzlYVWFBdEFxbHZjMUNXSVRSY0p1eG9rVkRnc0dEYUkyc3RTMldxS3RuaXVsd3ZOenduUGhva1NLdDN1cGN3dWRrRHNLb042TWUwb2tmQVYtSHFUTTl0VmFMU3Npa3pYdWpqOFR4RmdfUmNVbUJIaHlNb29CZ0pkd2pnNlhTS00tRTdPdmd5V1Q3SnB5ak5KdzlKbTZlREpBcFdxMnFCMmRhRVU3cS16eXpXUTg2WTdoYXZvNkFJWktxVnV1MVllUXZmNlRkQTBPLTNtYXc1a3d3a3hycTFteU9TeF9zQmZqNEZJZlhDbHN1LVQxcWJZMElHN3hwdzVURGJCRmdSaElzSHBKUkt4YjkwVGdNazNQM1RremJpeE5ZbUZ4OTFLOU9laFpxcFI1eDl4QnhYTXQ5eFlxeFBVZXplZ3BlMVk?oc=5" target="_blank" rel="noopener noreferrer" class="news-item-link">
+                                    Vantage Biosciences 完成口服 VX-01 治疗非增殖性糖尿病视网膜病变第 2 期临床研究首例患者的给药 - GlobeNewswire
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">Vantage Biosciences 完成口服 VX-01 治疗非增殖性糖尿病视网膜病变第 2 期临床研究首例患者的给药  GlobeNewswire</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">GlobeNewswire</span>
+                            <span class="time-tag">2025-04-12</span>
+                        </div>
+                    </div>
+                    </div></section></div>
+            <div id="tab-患者故事与心理支持" class="tab-content ">
                 <h2 class="font-semibold category-title-text">😊 患者故事与心理支持</h2>
-            <p class="text-gray-500">最近一个月暂无该分类下的资讯。</p></section>
-            <section class="category-section">
+            <p class="text-gray-500">最近一个月暂无该分类下的资讯。</p></section></div>
+            <div id="tab-政策-医保信息" class="tab-content ">
                 <h2 class="font-semibold category-title-text">📄 政策/医保信息</h2>
-            <p class="text-gray-500">最近一个月暂无该分类下的资讯。</p></section>
-        </div>
-    </div>
-    <footer class="text-center p-6 mt-12 text-gray-600 text-sm border-t border-gray-300">
+            <p class="text-gray-500">最近一个月暂无该分类下的资讯。</p></section></div>
+        </div> </div> <footer class="text-center p-6 mt-12 text-gray-600 text-sm border-t border-gray-300">
         <p>&copy; 2025 糖尿病资讯聚合. <a href="https://github.com/doudou-ux/diabetes-news" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">项目源码</a></p>
         <p class="mt-1">本站内容仅供参考, 不构成医疗建议。</p>
     </footer>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const newsContent = document.getElementById('news-content');
-            const loadingIndicator = document.getElementById('loading-indicator');
-            let hasRealContent = false;
-            if (newsContent && newsContent.childNodes) {
-                for (let i = 0; i < newsContent.childNodes.length; i++) {
-                    if (newsContent.childNodes[i].id !== 'loading-indicator' && newsContent.childNodes[i].nodeType === 1) {
-                        hasRealContent = true;
-                        break;
-                    }
-                }
-            }
-            if (loadingIndicator && hasRealContent) {
-                // loadingIndicator.style.display = 'none'; 
-            } else if (loadingIndicator && newsContent && newsContent.textContent && newsContent.textContent.includes("未能加载")) {
-                loadingIndicator.style.display = 'none';
+        document.addEventListener('DOMContentLoaded', function () {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            if (tabButtons.length > 0 && tabContents.length > 0) {
+                // Activate the first tab by default if not already active via class
+                // (The Python script already adds 'active' to the first tab button and content)
+                // if (!document.querySelector('.tab-button.active')) {
+                //     tabButtons[0].classList.add('active');
+                // }
+                // if (!document.querySelector('.tab-content.active')) {
+                //    tabContents[0].classList.add('active');
+                // }
+                
+                tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        // Deactivate all tabs and contents
+                        tabButtons.forEach(btn => btn.classList.remove('active'));
+                        tabContents.forEach(content => content.classList.remove('active'));
+
+                        // Activate clicked tab and corresponding content
+                        button.classList.add('active');
+                        const targetContentId = button.dataset.tabTarget; // e.g., "#tab-最新研究"
+                        const targetContent = document.querySelector(targetContentId);
+                        if (targetContent) {
+                            targetContent.classList.add('active');
+                        }
+                    });
+                });
             }
         });
     </script>
