@@ -211,7 +211,7 @@ def generate_html_content(all_news_data):
 
     # HTML尾部
     # 在页脚添加指向您的 GitHub 仓库的链接 (请记得替换占位符)
-    github_repo_url = "https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME" # 请替换这里
+    github_repo_url = "https://github.com/doudou-ux/diabetes-news" # 请替换这里
     html_output += f"""
         </div> </div> <footer class="text-center p-6 mt-12 text-gray-600 text-sm border-t border-gray-300">
         <p>&copy; {current_year} 糖尿病资讯聚合. <a href="{github_repo_url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">项目源码</a></p>
