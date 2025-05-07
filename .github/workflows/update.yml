@@ -36,7 +36,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_ACTOR: ${{ github.actor }}
           APP_TIMEZONE: Asia/Shanghai # 设置时区环境变量，让Python脚本可以生成正确的本地时间
-          PUBMED_API_EMAIL: ${{ secrets.PUBMED_API_EMAIL }} # 从 Secrets 读取 PubMed API 邮箱
+          # 下面这一行会读取您在仓库 Secrets 中设置的邮箱地址
+          PUBMED_API_EMAIL: ${{ secrets.PUBMED_API_EMAIL }}
 
       - name: Commit and push index.html # 步骤5：提交并推送更改
         run: |
