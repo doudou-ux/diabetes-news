@@ -2,13 +2,39 @@
 import datetime
 import html
 import os
-import time # 用于日期转换
+import time
 import requests
-import feedparser # 用于解析RSS feeds
-from bs4 import BeautifulSoup # 用于清理HTML标签
+import feedparser
+from bs4 import BeautifulSoup
 
-# --- 配置资讯分类 ---
-# 根据用户提供的详细信息更新关键词
+# --- (1) 配置权威 RSS 源 ---
+# 请您将来替换 YOUR_PUBMED_RSS_URL 和 YOUR_ADA_JOURNAL_RSS_URL 为实际的链接
+# 您可以添加更多类似的条目
+AUTHORITATIVE_RSS_FEEDS = [
+    {
+        "url": "https://www.medscape.com/rss/public/diabetes.xml",
+        "source_override": "Medscape Diabetes", # 显示在新闻卡片上的来源名称
+        "target_categories": ["最新研究", "治疗进展"] # 这条RSS源的新闻会被尝试放入这些分类
+    },
+    {
+        "url": "https://www.healio.com/news/endocrinology/rss",
+        "source_override": "Healio Endocrinology",
+        "target_categories": ["最新研究", "治疗进展"]
+    },
+    # --- 请您替换或添加以下占位符 ---
+    # {
+    #     "url": "YOUR_PUBMED_DIABETES_RESEARCH_RSS_URL", # 例如: https://pubmed.ncbi.nlm.nih.gov/rss/search/...
+    #     "source_override": "PubMed",
+    #     "target_categories": ["最新研究"]
+    # },
+    # {
+    #     "url": "YOUR_ADA_DIABETES_CARE_RSS_URL", # 例如: https://diabetesjournals.org/care/rss/current.xml
+    #     "source_override": "Diabetes Care (ADA)",
+    #     "target_categories": ["最新研究", "治疗进展"]
+    # },
+]
+
+# --- (2) 配置网站展示的分类及对应的 Google News 补充关键词 ---
 CATEGORIES_CONFIG = {
     "最新研究": {
         "keywords": "糖尿病 最新论文 OR 糖尿病技术突破 OR 糖尿病机制研究 OR 医学会议糖尿病 OR GLP-1糖尿病 OR SGLT2糖尿病 OR 胰岛β细胞 OR 胰岛素敏感性",
@@ -30,11 +56,11 @@ CATEGORIES_CONFIG = {
         "keywords": "糖尿病足 OR 糖尿病视网膜病变 OR 糖尿病肾病 OR 糖尿病神经病变 OR 糖网病 OR 微血管病变糖尿病 OR 尿白蛋白糖尿病",
         "emoji": "🩺"
     },
-    "患者故事与心理支持": { # 新增分类
+    "患者故事与心理支持": {
         "keywords": "糖尿病控糖经验 OR 糖尿病心理支持 OR 糖尿病家庭支持 OR 糖尿病患者故事 OR 糖尿病医生问答",
         "emoji": "😊"
     },
-    "政策/医保信息": { # 新增分类
+    "政策/医保信息": {
         "keywords": "糖尿病药品纳保 OR 糖尿病医保报销 OR 糖尿病社区慢病随访 OR 国家药监局糖尿病政策 OR 医保局糖尿病政策",
         "emoji": "📄"
     }
@@ -42,10 +68,6 @@ CATEGORIES_CONFIG = {
 
 # --- 帮助函数：判断日期是否在最近一个月内 ---
 def is_within_last_month_rss(time_struct, today_date_obj):
-    """
-    判断给定的 time_struct (来自 feedparser) 是否在最近一个月（过去30天）内。
-    today_date_obj 是今天的 datetime.date 对象。
-    """
     if not time_struct:
         return False
     try:
@@ -53,105 +75,79 @@ def is_within_last_month_rss(time_struct, today_date_obj):
         thirty_days_ago = today_date_obj - datetime.timedelta(days=30)
         return thirty_days_ago <= article_date <= today_date_obj
     except Exception as e:
-        print(f"    [is_within_last_month_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
+        print(f"      [is_within_last_month_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
         return False
 
 # --- 帮助函数：清理 HTML ---
 def clean_html(raw_html):
-    """使用 BeautifulSoup 清理 HTML 标签"""
-    if not raw_html:
-        return ""
+    if not raw_html: return ""
     try:
-        soup = BeautifulSoup(raw_html, "html.parser")
-        return soup.get_text()
-    except Exception as e:
-        print(f"    [clean_html] HTML 清理错误: {e}")
-        return raw_html
+        return BeautifulSoup(raw_html, "html.parser").get_text()
+    except Exception: return raw_html
 
-# --- 从 Google News RSS 获取真实新闻 ---
-def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
+# --- (3) 通用的从单个 RSS URL 获取文章的函数 ---
+def fetch_articles_from_rss(rss_url, source_name_override=None):
     """
-    从 Google News RSS feed 获取指定分类的最近一个月新闻。
+    从给定的 RSS URL 获取文章列表。
+    返回解析后的文章列表，每篇文章是一个包含 title, link, snippet, source, time_struct 的字典。
     """
-    print(f"  正在为分类 '{category_name}' (关键词: '{keywords_for_rss}') 获取真实新闻...")
-    base_url = "https://news.google.com/rss/search"
-    query_params = {
-        "q": keywords_for_rss,
-        "hl": "zh-CN", 
-        "gl": "CN",    
-        "ceid": "CN:zh-Hans" 
-    }
-    
-    articles_last_month = []
-    today = datetime.date.today()
-
+    print(f"    正在从源获取: {rss_url} ({source_name_override or '未知源'})")
+    articles = []
     try:
-        headers = { 
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        response = requests.get(base_url, params=query_params, headers=headers, timeout=20) # 增加超时到20秒
-        response.raise_for_status() 
-
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(rss_url, headers=headers, timeout=20)
+        response.raise_for_status()
         feed = feedparser.parse(response.content)
-        
+
         if not feed.entries:
-            print(f"    未找到分类 '{category_name}' 的新闻条目。")
+            print(f"      此源未返回任何条目: {rss_url}")
             return []
 
-        print(f"    分类 '{category_name}' 原始获取到 {len(feed.entries)} 条新闻，开始筛选最近一个月新闻...")
-
+        print(f"      从此源原始获取到 {len(feed.entries)} 条新闻。")
         for entry in feed.entries:
             title = entry.get("title", "无标题")
-            link = entry.get("link", "javascript:void(0);")
+            link = entry.get("link", f"javascript:void(0);_{title}") # 添加标题确保链接唯一性（如果link为空）
             
-            published_time_struct = entry.get("published_parsed")
-            if not published_time_struct:
-                published_time_struct = entry.get("updated_parsed")
-
-            if is_within_last_month_rss(published_time_struct, today):
-                summary_html = entry.get("summary", "暂无摘要")
-                snippet = clean_html(summary_html) 
-                
+            published_time_struct = entry.get("published_parsed") or entry.get("updated_parsed")
+            
+            summary_html = entry.get("summary", entry.get("description", "暂无摘要")) # 有些源用description
+            snippet = clean_html(summary_html)
+            
+            # 来源处理：优先使用 override，其次是 feedparser 提供的，最后是 Google News (如果是 Google News 源)
+            actual_source_name = source_name_override
+            if not actual_source_name:
                 source_info = entry.get("source")
-                source_name = source_info.get("title", "Google News") if source_info else "Google News"
+                actual_source_name = source_info.get("title") if source_info else "未知来源"
+                if "news.google.com" in rss_url and not source_name_override : # 特殊处理Google News的来源
+                    # Google News RSS的条目title通常是 "新闻标题 - 来源"，尝试提取
+                    if ' - ' in title:
+                        parts = title.rsplit(' - ', 1)
+                        # title = parts[0] # 取消修改标题，让用户看到完整信息
+                        actual_source_name = parts[1]
 
-                time_display_str = "未知时间"
-                if published_time_struct:
-                    try:
-                        time_display_str = time.strftime("%Y-%m-%d", published_time_struct)
-                    except:
-                        pass 
 
-                articles_last_month.append({
-                    "title": title,
-                    "url": link,
-                    "snippet": snippet,
-                    "source": source_name,
-                    "time": time_display_str 
-                })
-                if len(articles_last_month) >= 10: # 每个分类最多获取10条
-                    break 
-        
-        print(f"    分类 '{category_name}' 筛选后得到 {len(articles_last_month)} 条最近一个月新闻。")
-
+            articles.append({
+                "title": title,
+                "url": link,
+                "snippet": snippet,
+                "source": actual_source_name,
+                "time_struct": published_time_struct # 保留 time_struct 用于后续日期过滤
+            })
     except requests.exceptions.Timeout:
-        print(f"    获取分类 '{category_name}' 新闻时发生超时错误。")
+        print(f"      获取源时发生超时错误: {rss_url}")
     except requests.exceptions.RequestException as e:
-        print(f"    获取分类 '{category_name}' 新闻时发生网络错误: {e}")
+        print(f"      获取源时发生网络错误: {e} (URL: {rss_url})")
     except Exception as e:
-        print(f"    处理分类 '{category_name}' 新闻时发生未知错误: {e}")
-        
-    return articles_last_month
+        print(f"      处理源时发生未知错误: {e} (URL: {rss_url})")
+    return articles
 
-
-# --- HTML 生成逻辑 ---
+# --- HTML 生成逻辑 (与之前版本基本一致) ---
 def generate_html_content(all_news_data):
-    """根据新闻数据生成完整的HTML页面内容"""
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     app_timezone = os.getenv('APP_TIMEZONE', 'UTC') 
     if app_timezone != 'UTC':
         try:
-             current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z') # 假设东八区
+             current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z')
         except Exception as e:
             print(f"应用时区 ({app_timezone}) 时出错: {e}。将使用默认服务器时间。")
             current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S (服务器时间)')
@@ -197,7 +193,7 @@ def generate_html_content(all_news_data):
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
             <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
-            <p class="text-sm text-gray-500 mt-2">资讯来源：Google News RSS Feeds</p>
+            <p class="text-sm text-gray-500 mt-2">资讯综合来源</p>
         </header>
         <div id="news-content" class="space-y-12">
             <div id="loading-indicator" class="text-center py-10">
@@ -255,8 +251,8 @@ def generate_html_content(all_news_data):
                     url = html.escape(article.get('url', 'javascript:void(0);'))
                     snippet_raw = article.get('snippet', '暂无摘要')
                     snippet = html.escape(snippet_raw[:150] + ('...' if len(snippet_raw) > 150 else ''))
-                    source = html.escape(article.get('source', '未知来源'))
-                    time_display = html.escape(article.get('time', '未知时间'))
+                    source_display = html.escape(article.get('source', '未知来源')) # 使用 article 中已处理好的 source
+                    time_display = html.escape(article.get('time_display_str', '未知时间')) # 使用 article 中已处理好的 time_display_str
 
                     category_html += f"""
                     <div class="news-card shadow-md hover:shadow-lg p-5">
@@ -269,7 +265,7 @@ def generate_html_content(all_news_data):
                             <p class="text-gray-600 text-sm mb-4 leading-relaxed">{snippet}</p>
                         </div>
                         <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
-                            <span class="source-tag">{source}</span>
+                            <span class="source-tag">{source_display}</span>
                             <span class="time-tag">{time_display}</span>
                         </div>
                     </div>
@@ -294,27 +290,109 @@ def generate_html_content(all_news_data):
         )
     return html_output
 
-# --- 主执行逻辑 ---
+# --- (4) 主执行逻辑 ---
 if __name__ == "__main__":
-    print("开始从 Google News RSS 生成糖尿病资讯网页...")
-    all_news_data_for_html = {}
-
-    for category_name_zh, config in CATEGORIES_CONFIG.items():
-        articles = fetch_real_news_from_google_rss(category_name_zh, config["keywords"])
-        all_news_data_for_html[category_name_zh] = articles
-        print(f"  分类 '{category_name_zh}' 处理完毕，获取到 {len(articles)} 条最近一个月新闻。")
-        time.sleep(1) # 友好访问，避免请求过于频繁
+    print("开始从多个 RSS 源生成糖尿病资讯网页...")
     
-    final_html = generate_html_content(all_news_data_for_html)
+    # 初始化存储所有分类文章的字典
+    # key 是网站分类名, value 是该分类下的文章列表
+    all_articles_by_site_category = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
+    seen_article_links = set() # 用于去重
+    today = datetime.date.today()
+    MAX_ARTICLES_PER_CATEGORY = 10
+
+    # --- 步骤一：从权威 RSS 源获取新闻 ---
+    print("\n--- 正在从权威 RSS 源获取新闻 ---")
+    for feed_info in AUTHORITATIVE_RSS_FEEDS:
+        raw_articles_from_feed = fetch_articles_from_rss(feed_info["url"], feed_info["source_override"])
+        print(f"  处理来自 {feed_info['source_override']} 的 {len(raw_articles_from_feed)} 条原始新闻...")
+        
+        for article_data in raw_articles_from_feed:
+            if article_data["url"] in seen_article_links:
+                print(f"    跳过重复文章 (来自权威源): {article_data['title'][:30]}...")
+                continue
+
+            if is_within_last_month_rss(article_data["time_struct"], today):
+                time_display_str = "未知时间"
+                if article_data["time_struct"]:
+                    try:
+                        time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
+                    except: pass
+                
+                processed_article = {
+                    "title": article_data["title"],
+                    "url": article_data["url"],
+                    "snippet": article_data["snippet"],
+                    "source": article_data["source"], # 使用 fetch_articles_from_rss 中处理好的 source
+                    "time_display_str": time_display_str
+                }
+
+                seen_article_links.add(article_data["url"])
+                
+                # 将文章放入其对应的所有目标分类
+                for target_cat in feed_info["target_categories"]:
+                    if target_cat in all_articles_by_site_category: # 确保目标分类是我们网站定义的分类
+                        if len(all_articles_by_site_category[target_cat]) < MAX_ARTICLES_PER_CATEGORY:
+                            all_articles_by_site_category[target_cat].append(processed_article)
+                            print(f"      已添加 '{processed_article['title'][:30]}...' 到分类 '{target_cat}' (来自 {feed_info['source_override']})")
+                        else:
+                            print(f"      分类 '{target_cat}' 已满 (10条)，无法添加来自 {feed_info['source_override']} 的更多文章。")
+                    else:
+                        print(f"      警告: 权威源指定的目标分类 '{target_cat}' 不在网站分类配置中，跳过。")
+        time.sleep(1) # 友好访问
+
+    # --- 步骤二：从 Google News RSS 获取补充新闻 ---
+    print("\n--- 正在从 Google News RSS 获取补充新闻 ---")
+    for site_category_name, config in CATEGORIES_CONFIG.items():
+        if len(all_articles_by_site_category[site_category_name]) < MAX_ARTICLES_PER_CATEGORY:
+            print(f"  分类 '{site_category_name}' 需要补充新闻 (当前 {len(all_articles_by_site_category[site_category_name])} 条)，将从 Google News 获取...")
+            
+            google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(config['keywords'])}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
+            # 注意：Google News 的 source_override 留空，让 fetch_articles_from_rss 尝试从标题提取
+            raw_articles_from_google = fetch_articles_from_rss(google_news_rss_url, source_name_override=None) 
+            
+            print(f"    处理来自 Google News (分类: {site_category_name}) 的 {len(raw_articles_from_google)} 条原始新闻...")
+            for article_data in raw_articles_from_google:
+                if len(all_articles_by_site_category[site_category_name]) >= MAX_ARTICLES_PER_CATEGORY:
+                    break # 这个分类已经满了
+
+                if article_data["url"] in seen_article_links:
+                    print(f"      跳过重复文章 (来自Google News): {article_data['title'][:30]}...")
+                    continue
+
+                if is_within_last_month_rss(article_data["time_struct"], today):
+                    time_display_str = "未知时间"
+                    if article_data["time_struct"]:
+                        try:
+                            time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
+                        except: pass
+
+                    processed_article = {
+                        "title": article_data["title"],
+                        "url": article_data["url"],
+                        "snippet": article_data["snippet"],
+                        "source": article_data["source"], # 使用 fetch_articles_from_rss 中处理好的 source
+                        "time_display_str": time_display_str
+                    }
+                    all_articles_by_site_category[site_category_name].append(processed_article)
+                    seen_article_links.add(article_data["url"])
+                    print(f"        已添加 '{processed_article['title'][:30]}...' 到分类 '{site_category_name}' (来自 Google News)")
+            time.sleep(1) # 友好访问
+        else:
+            print(f"  分类 '{site_category_name}' 已有足够新闻 ({len(all_articles_by_site_category[site_category_name])}条)，跳过 Google News 获取。")
+
+    # --- (5) 生成最终的HTML ---
+    final_html = generate_html_content(all_articles_by_site_category)
     
     output_filename = "index.html" 
     try:
         with open(output_filename, "w", encoding="utf-8") as f:
             f.write(final_html)
-        print(f"成功生成网页：{output_filename}")
+        print(f"\n成功生成网页：{output_filename}")
     except IOError as e:
-        print(f"错误：无法写入文件 {output_filename}。错误信息: {e}")
+        print(f"\n错误：无法写入文件 {output_filename}。错误信息: {e}")
     except Exception as e:
-        print(f"生成过程中发生未知错误: {e}")
+        print(f"\n生成过程中发生未知错误: {e}")
 
     print("资讯网页生成完毕。")
+
