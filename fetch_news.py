@@ -28,11 +28,11 @@ def is_this_week_rss(time_struct, today_date_obj):
     try:
         # feedparser 返回的 time_struct 是 time.struct_time 对象
         article_date = datetime.date(time_struct.tm_year, time_struct.tm_mon, time_struct.tm_mday)
-
+        
         # 计算本周的开始 (周一) 和结束 (周日)
         start_of_week = today_date_obj - datetime.timedelta(days=today_date_obj.weekday())
         end_of_week = start_of_week + datetime.timedelta(days=6)
-
+        
         return start_of_week <= article_date <= end_of_week
     except Exception as e:
         print(f"    [is_this_week_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
@@ -53,7 +53,7 @@ def clean_html(raw_html):
 # --- 从 Google News RSS 获取真实新闻 ---
 def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
     """
-    从 Google News RSS feed 获取指定分类的新闻。
+    从 Google News RSS feed 获取指定分类的本周新闻。
     """
     print(f"  正在为分类 '{category_name}' (关键词: '{keywords_for_rss}') 获取真实新闻...")
     base_url = "https://news.google.com/rss/search"
@@ -65,7 +65,7 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
     }
     
     articles_this_week = []
-    today = datetime.date.today() # 尽管当前不过滤，但保留以备将来恢复
+    today = datetime.date.today()
 
     try:
         headers = { 
@@ -80,7 +80,7 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
             print(f"    未找到分类 '{category_name}' 的新闻条目。")
             return []
 
-        print(f"    分类 '{category_name}' 原始获取到 {len(feed.entries)} 条新闻，开始筛选（当前不过滤日期）...")
+        print(f"    分类 '{category_name}' 原始获取到 {len(feed.entries)} 条新闻，开始筛选本周新闻...")
 
         for entry in feed.entries:
             title = entry.get("title", "无标题")
@@ -90,8 +90,7 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
             if not published_time_struct:
                 published_time_struct = entry.get("updated_parsed")
 
-            # 调用 is_this_week_rss (当前总是返回 True)
-            if is_this_week_rss(published_time_struct, today):
+            if is_this_week_rss(published_time_struct, today): # 现在会进行日期过滤
                 summary_html = entry.get("summary", "暂无摘要")
                 snippet = clean_html(summary_html) 
                 
@@ -112,10 +111,10 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
                     "source": source_name,
                     "time": time_display_str 
                 })
-                if len(articles_this_week) >= 10: # 每个分类最多获取10条
+                if len(articles_this_week) >= 10: # 每个分类最多获取10条本周新闻
                     break 
         
-        print(f"    分类 '{category_name}' （当前不过滤日期）筛选后得到 {len(articles_this_week)} 条新闻。")
+        print(f"    分类 '{category_name}' 筛选后得到 {len(articles_this_week)} 条本周新闻。")
 
     except requests.exceptions.RequestException as e:
         print(f"    获取分类 '{category_name}' 新闻时发生网络错误: {e}")
@@ -125,21 +124,20 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
     return articles_this_week
 
 
-# --- HTML 生成逻辑 (与之前版本基本一致) ---
+# --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data):
     """根据新闻数据生成完整的HTML页面内容"""
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     app_timezone = os.getenv('APP_TIMEZONE', 'UTC') 
     if app_timezone != 'UTC':
         try:
-             # 假设东八区，更精确的实现可能需要pytz
-             current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z')
+             current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z') # 假设东八区
         except Exception as e:
             print(f"应用时区 ({app_timezone}) 时出错: {e}。将使用默认服务器时间。")
             current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S (服务器时间)')
 
     current_year = datetime.datetime.now().year
-    github_repo_url = f"https://github.com/{os.getenv('GITHUB_REPOSITORY', 'doudou-ux/diabetes-news')}" # 直接使用您的仓库名作为备用
+    github_repo_url = f"https://github.com/{os.getenv('GITHUB_REPOSITORY', 'doudou-ux/diabetes-news')}"
 
     html_output = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -179,8 +177,7 @@ def generate_html_content(all_news_data):
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
             <p class="text-gray-600 mt-3 text-base md:text-lg">本周最新动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
-            <p class="text-sm text-gray-500 mt-2">资讯来源：Google News RSS Feeds (当前显示所有获取到的新闻，未按周过滤)</p>
-        </header>
+            <p class="text-sm text-gray-500 mt-2">资讯来源：Google News RSS Feeds</p> </header>
         <div id="news-content" class="space-y-12">
             <div id="loading-indicator" class="text-center py-10">
                  <div class="loader"></div>
@@ -208,7 +205,6 @@ def generate_html_content(all_news_data):
             if (loadingIndicator && hasRealContent) {{
                 // loadingIndicator.style.display = 'none'; 
             }} else if (loadingIndicator && newsContent && newsContent.textContent && newsContent.textContent.includes("未能加载")) {{
-                // 如果 只有 错误 信息 , 也 移除 加载 动画
                 loadingIndicator.style.display = 'none';
             }}
         }});
@@ -220,7 +216,7 @@ def generate_html_content(all_news_data):
     found_any_news = False
 
     if not all_news_data or all(not articles for articles in all_news_data.values()):
-        news_html_parts.append('<p class="text-center text-gray-500 text-xl py-10">抱歉，目前未能加载到相关的糖尿病资讯。</p>')
+        news_html_parts.append('<p class="text-center text-gray-500 text-xl py-10">抱歉，目前未能加载到本周相关的糖尿病资讯。</p>')
     else:
         for category, articles in all_news_data.items():
             category_emoji = CATEGORIES_CONFIG.get(category, {}).get("emoji", "")
@@ -229,7 +225,7 @@ def generate_html_content(all_news_data):
                 <h2 class="font-semibold category-title-text">{category_emoji} {html.escape(category)}</h2>
             """
             if not articles:
-                category_html += '<p class="text-gray-500">暂无该分类下的资讯。</p>' # 修改提示信息
+                category_html += '<p class="text-gray-500">本周暂无该分类下的资讯。</p>' # 提示信息恢复
             else:
                 found_any_news = True
                 category_html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">'
@@ -272,7 +268,7 @@ def generate_html_content(all_news_data):
              html_output = html_output.replace(loading_indicator_html, '<p class="text-center text-gray-500 text-xl py-10">资讯加载时出现问题或暂无内容。</p>')
     else: 
         html_output = html_output.replace(
-            '<div id="news-content" class="space-y-12">\n            \n            ',
+            '<div id="news-content" class="space-y-12">\n            \n            ', # 确保这里的占位符与HTML模板中的完全一致
             f'<div id="news-content" class="space-y-12">\n{"".join(news_html_parts)}'
         )
     return html_output
@@ -285,7 +281,7 @@ if __name__ == "__main__":
     for category_name_zh, config in CATEGORIES_CONFIG.items():
         articles = fetch_real_news_from_google_rss(category_name_zh, config["keywords"])
         all_news_data_for_html[category_name_zh] = articles
-        print(f"  分类 '{category_name_zh}' 处理完毕，获取到 {len(articles)} 条新闻（当前不过滤日期）。") # 更新日志信息
+        print(f"  分类 '{category_name_zh}' 处理完毕，获取到 {len(articles)} 条本周新闻。") # 日志信息恢复
         time.sleep(1) 
     
     final_html = generate_html_content(all_news_data_for_html)
