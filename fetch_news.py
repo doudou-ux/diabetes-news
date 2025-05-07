@@ -8,35 +8,53 @@ import feedparser # 用于解析RSS feeds
 from bs4 import BeautifulSoup # 用于清理HTML标签
 
 # --- 配置资讯分类 ---
-# 关键字将用于构建 Google News RSS 查询
+# 根据用户提供的详细信息更新关键词
 CATEGORIES_CONFIG = {
-    "最新研究": {"keywords": "糖尿病 最新研究", "emoji": "🔬"},
-    "治疗进展": {"keywords": "糖尿病 治疗进展", "emoji": "💊"},
-    "预防与生活方式": {"keywords": "糖尿病 预防 生活方式", "emoji": "🏃‍♀️"},
-    "并发症管理": {"keywords": "糖尿病 并发症管理", "emoji": "🩺"},
-    "饮食与营养": {"keywords": "糖尿病 饮食营养", "emoji": "🥗"}
+    "最新研究": {
+        "keywords": "糖尿病 最新论文 OR 糖尿病技术突破 OR 糖尿病机制研究 OR 医学会议糖尿病 OR GLP-1糖尿病 OR SGLT2糖尿病 OR 胰岛β细胞 OR 胰岛素敏感性",
+        "emoji": "🔬"
+    },
+    "治疗进展": {
+        "keywords": "糖尿病新药 OR 糖尿病适应症扩展 OR 糖尿病设备研发 OR AI辅助诊疗糖尿病 OR 达格列净 OR 司美格鲁肽 OR CGM OR 连续血糖监测 OR 胰岛素泵",
+        "emoji": "💊"
+    },
+    "饮食与营养": {
+        "keywords": "糖尿病饮食指南 OR 碳水交换表 OR 糖尿病食谱 OR 低GI饮食糖尿病 OR 高蛋白饮食糖尿病 OR 间歇性断食糖尿病 OR 膳食纤维糖尿病",
+        "emoji": "🥗"
+    },
+    "预防与生活方式": {
+        "keywords": "糖尿病运动建议 OR 糖尿病睡眠 OR 糖尿病减重 OR 控糖计划 OR 糖尿病早期筛查 OR 糖耐量异常 OR 体脂管理糖尿病 OR 糖尿病步数目标",
+        "emoji": "🏃‍♀️"
+    },
+    "并发症管理": {
+        "keywords": "糖尿病足 OR 糖尿病视网膜病变 OR 糖尿病肾病 OR 糖尿病神经病变 OR 糖网病 OR 微血管病变糖尿病 OR 尿白蛋白糖尿病",
+        "emoji": "🩺"
+    },
+    "患者故事与心理支持": { # 新增分类
+        "keywords": "糖尿病控糖经验 OR 糖尿病心理支持 OR 糖尿病家庭支持 OR 糖尿病患者故事 OR 糖尿病医生问答",
+        "emoji": "😊"
+    },
+    "政策/医保信息": { # 新增分类
+        "keywords": "糖尿病药品纳保 OR 糖尿病医保报销 OR 糖尿病社区慢病随访 OR 国家药监局糖尿病政策 OR 医保局糖尿病政策",
+        "emoji": "📄"
+    }
 }
 
-# --- 帮助函数：判断日期是否在本周 ---
-def is_this_week_rss(time_struct, today_date_obj):
+# --- 帮助函数：判断日期是否在最近一个月内 ---
+def is_within_last_month_rss(time_struct, today_date_obj):
     """
-    判断给定的 time_struct (来自 feedparser) 是否在本周 (周一到周日)。
+    判断给定的 time_struct (来自 feedparser) 是否在最近一个月（过去30天）内。
     today_date_obj 是今天的 datetime.date 对象。
     """
     if not time_struct:
         return False
     try:
-        # feedparser 返回的 time_struct 是 time.struct_time 对象
         article_date = datetime.date(time_struct.tm_year, time_struct.tm_mon, time_struct.tm_mday)
-        
-        # 计算本周的开始 (周一) 和结束 (周日)
-        start_of_week = today_date_obj - datetime.timedelta(days=today_date_obj.weekday())
-        end_of_week = start_of_week + datetime.timedelta(days=6)
-        
-        return start_of_week <= article_date <= end_of_week
+        thirty_days_ago = today_date_obj - datetime.timedelta(days=30)
+        return thirty_days_ago <= article_date <= today_date_obj
     except Exception as e:
-        print(f"    [is_this_week_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
-        return False # 如果日期无效或解析失败
+        print(f"    [is_within_last_month_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
+        return False
 
 # --- 帮助函数：清理 HTML ---
 def clean_html(raw_html):
@@ -48,12 +66,12 @@ def clean_html(raw_html):
         return soup.get_text()
     except Exception as e:
         print(f"    [clean_html] HTML 清理错误: {e}")
-        return raw_html # 出错则返回原始文本
+        return raw_html
 
 # --- 从 Google News RSS 获取真实新闻 ---
 def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
     """
-    从 Google News RSS feed 获取指定分类的本周新闻。
+    从 Google News RSS feed 获取指定分类的最近一个月新闻。
     """
     print(f"  正在为分类 '{category_name}' (关键词: '{keywords_for_rss}') 获取真实新闻...")
     base_url = "https://news.google.com/rss/search"
@@ -64,14 +82,14 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
         "ceid": "CN:zh-Hans" 
     }
     
-    articles_this_week = []
+    articles_last_month = []
     today = datetime.date.today()
 
     try:
         headers = { 
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        response = requests.get(base_url, params=query_params, headers=headers, timeout=15) 
+        response = requests.get(base_url, params=query_params, headers=headers, timeout=20) # 增加超时到20秒
         response.raise_for_status() 
 
         feed = feedparser.parse(response.content)
@@ -80,7 +98,7 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
             print(f"    未找到分类 '{category_name}' 的新闻条目。")
             return []
 
-        print(f"    分类 '{category_name}' 原始获取到 {len(feed.entries)} 条新闻，开始筛选本周新闻...")
+        print(f"    分类 '{category_name}' 原始获取到 {len(feed.entries)} 条新闻，开始筛选最近一个月新闻...")
 
         for entry in feed.entries:
             title = entry.get("title", "无标题")
@@ -90,7 +108,7 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
             if not published_time_struct:
                 published_time_struct = entry.get("updated_parsed")
 
-            if is_this_week_rss(published_time_struct, today): # 现在会进行日期过滤
+            if is_within_last_month_rss(published_time_struct, today):
                 summary_html = entry.get("summary", "暂无摘要")
                 snippet = clean_html(summary_html) 
                 
@@ -104,24 +122,26 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
                     except:
                         pass 
 
-                articles_this_week.append({
+                articles_last_month.append({
                     "title": title,
                     "url": link,
                     "snippet": snippet,
                     "source": source_name,
                     "time": time_display_str 
                 })
-                if len(articles_this_week) >= 10: # 每个分类最多获取10条本周新闻
+                if len(articles_last_month) >= 10: # 每个分类最多获取10条
                     break 
         
-        print(f"    分类 '{category_name}' 筛选后得到 {len(articles_this_week)} 条本周新闻。")
+        print(f"    分类 '{category_name}' 筛选后得到 {len(articles_last_month)} 条最近一个月新闻。")
 
+    except requests.exceptions.Timeout:
+        print(f"    获取分类 '{category_name}' 新闻时发生超时错误。")
     except requests.exceptions.RequestException as e:
         print(f"    获取分类 '{category_name}' 新闻时发生网络错误: {e}")
     except Exception as e:
         print(f"    处理分类 '{category_name}' 新闻时发生未知错误: {e}")
         
-    return articles_this_week
+    return articles_last_month
 
 
 # --- HTML 生成逻辑 ---
@@ -176,8 +196,9 @@ def generate_html_content(all_news_data):
     <div class="container mx-auto main-container">
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
-            <p class="text-gray-600 mt-3 text-base md:text-lg">本周最新动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
-            <p class="text-sm text-gray-500 mt-2">资讯来源：Google News RSS Feeds</p> </header>
+            <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
+            <p class="text-sm text-gray-500 mt-2">资讯来源：Google News RSS Feeds</p>
+        </header>
         <div id="news-content" class="space-y-12">
             <div id="loading-indicator" class="text-center py-10">
                  <div class="loader"></div>
@@ -216,7 +237,7 @@ def generate_html_content(all_news_data):
     found_any_news = False
 
     if not all_news_data or all(not articles for articles in all_news_data.values()):
-        news_html_parts.append('<p class="text-center text-gray-500 text-xl py-10">抱歉，目前未能加载到本周相关的糖尿病资讯。</p>')
+        news_html_parts.append('<p class="text-center text-gray-500 text-xl py-10">抱歉，目前未能加载到最近一个月相关的糖尿病资讯。</p>')
     else:
         for category, articles in all_news_data.items():
             category_emoji = CATEGORIES_CONFIG.get(category, {}).get("emoji", "")
@@ -225,7 +246,7 @@ def generate_html_content(all_news_data):
                 <h2 class="font-semibold category-title-text">{category_emoji} {html.escape(category)}</h2>
             """
             if not articles:
-                category_html += '<p class="text-gray-500">本周暂无该分类下的资讯。</p>' # 提示信息恢复
+                category_html += '<p class="text-gray-500">最近一个月暂无该分类下的资讯。</p>'
             else:
                 found_any_news = True
                 category_html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">'
@@ -268,7 +289,7 @@ def generate_html_content(all_news_data):
              html_output = html_output.replace(loading_indicator_html, '<p class="text-center text-gray-500 text-xl py-10">资讯加载时出现问题或暂无内容。</p>')
     else: 
         html_output = html_output.replace(
-            '<div id="news-content" class="space-y-12">\n            \n            ', # 确保这里的占位符与HTML模板中的完全一致
+            '<div id="news-content" class="space-y-12">\n            \n            ', 
             f'<div id="news-content" class="space-y-12">\n{"".join(news_html_parts)}'
         )
     return html_output
@@ -281,8 +302,8 @@ if __name__ == "__main__":
     for category_name_zh, config in CATEGORIES_CONFIG.items():
         articles = fetch_real_news_from_google_rss(category_name_zh, config["keywords"])
         all_news_data_for_html[category_name_zh] = articles
-        print(f"  分类 '{category_name_zh}' 处理完毕，获取到 {len(articles)} 条本周新闻。") # 日志信息恢复
-        time.sleep(1) 
+        print(f"  分类 '{category_name_zh}' 处理完毕，获取到 {len(articles)} 条最近一个月新闻。")
+        time.sleep(1) # 友好访问，避免请求过于频繁
     
     final_html = generate_html_content(all_news_data_for_html)
     
