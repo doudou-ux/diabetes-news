@@ -17,11 +17,11 @@ except ImportError:
 
 # --- (1) 配置权威 RSS 源 ---
 AUTHORITATIVE_RSS_FEEDS = [
-    {"url": "https://www.medscape.com/rss/public/diabetes.xml", "source_override": "Medscape Diabetes", "priority": 10, "needs_translation": True},
+    {"url": "https://www.medscape.com/rss/public/diabetes.xml", "source_override": "Medscape Diabetes", "priority": 10, "needs_trhttps://accounts.google.com/SignOutOptions?hl=zh-CN&continue=https://gemini.google.com/app/c987f880b5ca6d5f&ec=GBRAkgU$0anslation": True},
     {"url": "https://www.healio.com/news/endocrinology/rss", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True},
     {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True},
     {"url": "https://thesavvydiabetic.com/feed/", "source_override": "The Savvy Diabetic", "priority": 7, "needs_translation": True},
-    {"url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss", "source_override": "Diabetes UK 论坛", "priority": 6, "needs_translation": True},
+    # {"url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss", "source_override": "Diabetes UK 论坛", "priority": 6, "needs_translation": True}, # <-- 已注释掉此来源
     {"url": "https://www.gov.uk/government/organisations/medicines-and-healthcare-products-regulatory-agency.rss", "source_override": "MHRA (UK)", "priority": 9, "needs_translation": True},
     {"url": "https://www.fda.gov/rss.xml", "source_override": "FDA (US)", "priority": 10, "needs_translation": True},
     # { "url": "YOUR_PUBMED_RSS_URL", "source_override": "PubMed (RSS Search)", "priority": 12, "needs_translation": True },
@@ -409,14 +409,19 @@ def determine_best_category(article_obj):
         if not keywords: continue
         current_score = 0
         for keyword in keywords:
-            if keyword.lower() in title.lower(): current_score += 3
-            elif keyword.lower() in snippet.lower(): current_score += 1
+            # 提升关键词匹配的准确性，避免部分匹配带来的干扰
+            # 使用正则表达式确保匹配整个词（忽略大小写）
+            # \b 表示单词边界
+            pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+            if re.search(pattern, title.lower()):
+                 current_score += 3
+            elif re.search(pattern, snippet.lower()):
+                 current_score += 1
         if current_score > highest_score:
             highest_score = current_score
             best_category = category_name
     MIN_SCORE_THRESHOLD = 2
     if highest_score < MIN_SCORE_THRESHOLD:
-        # print(f"      文章 '{title[:30]}...' 未达到分类阈值 ({highest_score})，归入 '综合资讯'") # 日志可能过多
         return "综合资讯"
     else:
         print(f"      文章 '{title[:30]}...' 匹配到分类 '{best_category}' (得分: {highest_score})")
@@ -591,7 +596,7 @@ if __name__ == "__main__":
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
         needs_translation = feed_info.get("needs_translation", False)
@@ -626,7 +631,7 @@ if __name__ == "__main__":
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
         if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP: continue
         fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
@@ -657,7 +662,7 @@ if __name__ == "__main__":
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
     print("\n--- 正在从 Google News RSS 获取补充新闻 (用于全局候选池) ---")
-    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     google_search_term = "糖尿病 新闻 OR diabetes news" 
     print(f"  使用 Google News 搜索词: {google_search_term}")
     google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(google_search_term)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
@@ -688,7 +693,7 @@ if __name__ == "__main__":
 
     # --- 步骤四：动态分类所有候选文章 ---
     print("\n--- 正在对所有候选文章进行动态分类 ---")
-    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     all_articles_by_site_category_temp = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
     categorized_urls = set() 
     for candidate_info in unique_articles_candidates.values():
@@ -705,7 +710,7 @@ if __name__ == "__main__":
 
     # --- 步骤五：对每个分类的文章按来源类型和日期排序并截取 ---
     print("\n--- 正在对各分类新闻进行排序和截取 ---")
-    # ... (与 diabetes_news_fetch_all_sources_v1 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     all_articles_by_site_category_final_sorted = {}
     for category_name, articles_list in all_articles_by_site_category_temp.items():
         articles_list.sort(key=lambda x: (
