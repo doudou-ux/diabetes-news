@@ -56,25 +56,23 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
     从 Google News RSS feed 获取指定分类的新闻。
     """
     print(f"  正在为分类 '{category_name}' (关键词: '{keywords_for_rss}') 获取真实新闻...")
-    # 构建 Google News RSS URL (中文新闻, 中国地区)
-    # 注意：Google News RSS 的确切行为和URL参数可能会变化
     base_url = "https://news.google.com/rss/search"
     query_params = {
         "q": keywords_for_rss,
-        "hl": "zh-CN", # 语言：简体中文
-        "gl": "CN",    # 地理位置：中国
-        "ceid": "CN:zh-Hans" # 版本标识
+        "hl": "zh-CN", 
+        "gl": "CN",    
+        "ceid": "CN:zh-Hans" 
     }
     
     articles_this_week = []
-    today = datetime.date.today() # 获取今天的日期对象，用于 is_this_week_rss
+    today = datetime.date.today()
 
     try:
-        headers = { # 添加 User-Agent，模拟浏览器访问
+        headers = { 
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        response = requests.get(base_url, params=query_params, headers=headers, timeout=15) # 设置15秒超时
-        response.raise_for_status() # 如果请求失败 (如 404, 500), 会抛出异常
+        response = requests.get(base_url, params=query_params, headers=headers, timeout=15) 
+        response.raise_for_status() 
 
         feed = feedparser.parse(response.content)
         
@@ -88,35 +86,32 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
             title = entry.get("title", "无标题")
             link = entry.get("link", "javascript:void(0);")
             
-            # 获取发布日期，优先使用 published_parsed，其次 updated_parsed
             published_time_struct = entry.get("published_parsed")
             if not published_time_struct:
                 published_time_struct = entry.get("updated_parsed")
 
-            # 使用 is_this_week_rss 进行筛选
             if is_this_week_rss(published_time_struct, today):
                 summary_html = entry.get("summary", "暂无摘要")
-                snippet = clean_html(summary_html) # 清理HTML标签
+                snippet = clean_html(summary_html) 
                 
                 source_info = entry.get("source")
                 source_name = source_info.get("title", "Google News") if source_info else "Google News"
 
-                # 将解析的日期转换为更易读的格式 (可选, HTML中可能不需要这么精确)
                 time_display_str = "未知时间"
                 if published_time_struct:
                     try:
                         time_display_str = time.strftime("%Y-%m-%d", published_time_struct)
                     except:
-                        pass # 保持 "未知时间"
+                        pass 
 
                 articles_this_week.append({
                     "title": title,
                     "url": link,
                     "snippet": snippet,
                     "source": source_name,
-                    "time": time_display_str # 或者使用更友好的 "X天前" 等，但需要额外逻辑
+                    "time": time_display_str 
                 })
-                if len(articles_this_week) >= 10: # 每个分类最多获取10条本周新闻
+                if len(articles_this_week) >= 10: 
                     break 
         
         print(f"    分类 '{category_name}' 筛选后得到 {len(articles_this_week)} 条本周新闻。")
@@ -129,35 +124,21 @@ def fetch_real_news_from_google_rss(category_name, keywords_for_rss):
     return articles_this_week
 
 
-# --- HTML 生成逻辑 (与之前版本基本一致) ---
+# --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data):
     """根据新闻数据生成完整的HTML页面内容"""
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
-    app_timezone = os.getenv('APP_TIMEZONE', 'UTC') # 从环境变量读取时区
+    app_timezone = os.getenv('APP_TIMEZONE', 'UTC') 
     if app_timezone != 'UTC':
-        # 尝试使用环境变量设置的时间，如果失败则回退
         try:
-            # 注意：这部分依赖于运行环境对时区的支持。
-            # 在GitHub Actions中，设置TZ环境变量通常有效。
-             current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z') # 假设东八区
-             if app_timezone == "Asia/Shanghai": # 更精确的示例
-                 pass # 实际应用中可能需要 pytz 或 dateutil
+             # 假设东八区，更精确的实现可能需要pytz
+             current_time_str = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime('%Y年%m月%d日 %H:%M:%S %Z')
         except Exception as e:
             print(f"应用时区 ({app_timezone}) 时出错: {e}。将使用默认服务器时间。")
             current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S (服务器时间)')
 
-
     current_year = datetime.datetime.now().year
     github_repo_url = f"https://github.com/{os.getenv('GITHUB_REPOSITORY', 'YOUR_USERNAME/YOUR_REPOSITORY_NAME')}"
-    if github_repo_url == "https://github.com/YOUR_USERNAME/YOUR_REPOSITORY_NAME" and os.getenv('GITHUB_ACTOR'):
-        # 尝试从 GITHUB_ACTOR 和仓库名推断 (不一定准确)
-        actor = os.getenv('GITHUB_ACTOR')
-        repo_name = os.getenv('GITHUB_REPOSITORY_NAME', 'diabetes-news') # GITHUB_REPOSITORY_NAME 可能不存在
-        if actor and repo_name:
-            github_repo_url = f"https://github.com/{actor}/{repo_name}"
-        elif os.getenv('GITHUB_REPOSITORY'): # GITHUB_REPOSITORY 格式是 owner/repo
-             github_repo_url = f"https://github.com/{os.getenv('GITHUB_REPOSITORY')}"
-
 
     html_output = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -211,34 +192,29 @@ def generate_html_content(all_news_data):
         <p class="mt-1">本站内容仅供参考, 不构成医疗建议。</p>
     </footer>
     <script>
-        // 简单的JS来在实际内容加载后移除加载指示器 (如果HTML是静态生成，这个可能不是必须的)
-        // 但如果Python脚本生成内容后，我们想用JS动态插入，则有用
-        // 在当前纯静态生成HTML的模式下，这个脚本块可以简化或移除
         document.addEventListener('DOMContentLoaded', function() {{
             const newsContent = document.getElementById('news-content');
             const loadingIndicator = document.getElementById('loading-indicator');
-            // 检查 news-content 是否已经有除了 loading-indicator 之外的子元素
             let hasRealContent = false;
-            for (let i = 0; i < newsContent.childNodes.length; i++) {{
-                if (newsContent.childNodes[i].id !== 'loading-indicator' && newsContent.childNodes[i].nodeType === 1) {{
-                    hasRealContent = true;
-                    break;
+            if (newsContent && newsContent.childNodes) {{ // 添加检查以确保 newsContent 和 childNodes 存在
+                for (let i = 0; i < newsContent.childNodes.length; i++) {{
+                    if (newsContent.childNodes[i].id !== 'loading-indicator' && newsContent.childNodes[i].nodeType === 1) {{
+                        hasRealContent = true;
+                        break;
+                    }}
                 }}
             }}
             if (loadingIndicator && hasRealContent) {{
-                // loadingIndicator.style.display = 'none'; // 或者直接移除
-            }} else if (loadingIndicator && !hasRealContent && newsContent.textContent.includes("未能加载")) {
-                // 如果只有错误信息，也移除加载动画
+                // loadingIndicator.style.display = 'none'; 
+            }} else if (loadingIndicator && newsContent && newsContent.textContent && newsContent.textContent.includes("未能加载")) {{ // 添加对 newsContent 和 textContent 的检查
+                // 如果 只有 错误 信息 , 也 移除 加载 动画  // <--- 修正这里的注释为半角斜杠
                 loadingIndicator.style.display = 'none';
-            }
-            // 更新时间戳 (如果需要更动态的时间更新)
-            // document.getElementById('updateTime').textContent = new Date().toLocaleString('zh-CN', {{ hour12: false }});
+            }}
         }});
     </script>
 </body>
 </html>"""
 
-    # 生成每个分类的新闻内容
     news_html_parts = []
     found_any_news = False
 
@@ -256,11 +232,10 @@ def generate_html_content(all_news_data):
             else:
                 found_any_news = True
                 category_html += '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">'
-                for article in articles: # 已经在获取时限制了数量
+                for article in articles: 
                     title = html.escape(article.get('title', '无标题'))
                     url = html.escape(article.get('url', 'javascript:void(0);'))
                     snippet_raw = article.get('snippet', '暂无摘要')
-                    # 限制摘要长度，避免过长
                     snippet = html.escape(snippet_raw[:150] + ('...' if len(snippet_raw) > 150 else ''))
                     source = html.escape(article.get('source', '未知来源'))
                     time_display = html.escape(article.get('time', '未知时间'))
@@ -281,29 +256,30 @@ def generate_html_content(all_news_data):
                         </div>
                     </div>
                     """
-                category_html += "</div>" # close grid
+                category_html += "</div>" 
             category_html += "</section>"
             news_html_parts.append(category_html)
     
     # 替换HTML模板中的占位符
-    # 移除加载指示器，如果已经有内容或错误信息
-    if found_any_news or "<p class=\"text-center text-gray-500 text-xl py-10\">" in news_html_parts[0]:
-        html_output = html_output.replace(
-            """<div id="loading-indicator" class="text-center py-10">
+    # 确保 loading-indicator 存在才尝试替换它
+    loading_indicator_html = """<div id="loading-indicator" class="text-center py-10">
                  <div class="loader"></div>
                  <p class="text-gray-600 mt-2">正在加载最新资讯...</p>
-            </div>""",
-            "".join(news_html_parts)
-        )
-    else: # 如果什么都没找到，但也不是明确的错误信息，保留加载（理论上不应发生）
+            </div>"""
+    if loading_indicator_html in html_output:
+        if found_any_news or (news_html_parts and "<p class=\"text-center text-gray-500 text-xl py-10\">" in news_html_parts[0]):
+            html_output = html_output.replace(loading_indicator_html, "".join(news_html_parts))
+        # 如果没有新闻，也没有错误信息（理论上不应发生，因为上面已处理 all_news_data 为空的情况），
+        # 并且 news_html_parts 为空，则保留加载指示器或显示通用错误。
+        # 为了安全起见，如果 news_html_parts 为空但 found_any_news 为 false，
+        # 并且没有明确的“未能加载”信息，则也替换掉加载指示器，以防万一。
+        elif not news_html_parts: # 如果 news_html_parts 是空的
+             html_output = html_output.replace(loading_indicator_html, '<p class="text-center text-gray-500 text-xl py-10">资讯加载时出现问题或暂无内容。</p>')
+
+    else: # 如果模板中没有加载指示器了（比如之前的替换逻辑不完美），直接构建新闻内容区
         html_output = html_output.replace(
-             """<div id="news-content" class="space-y-12">
-            <div id="loading-indicator" class="text-center py-10">
-                 <div class="loader"></div>
-                 <p class="text-gray-600 mt-2">正在加载最新资讯...</p>
-            </div>
-        </div>""",
-             f"""<div id="news-content" class="space-y-12">{"".join(news_html_parts)}</div>"""
+            '<div id="news-content" class="space-y-12">\n            \n            ',
+            f'<div id="news-content" class="space-y-12">\n{"".join(news_html_parts)}'
         )
 
 
@@ -315,11 +291,10 @@ if __name__ == "__main__":
     all_news_data_for_html = {}
 
     for category_name_zh, config in CATEGORIES_CONFIG.items():
-        # 使用真实新闻获取函数
         articles = fetch_real_news_from_google_rss(category_name_zh, config["keywords"])
         all_news_data_for_html[category_name_zh] = articles
         print(f"  分类 '{category_name_zh}' 处理完毕，获取到 {len(articles)} 条本周新闻。")
-        time.sleep(1) # 友好访问，避免请求过于频繁，在分类间稍作停顿
+        time.sleep(1) 
     
     final_html = generate_html_content(all_news_data_for_html)
     
