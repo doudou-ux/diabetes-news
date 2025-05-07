@@ -17,13 +17,26 @@ CATEGORIES_CONFIG = {
     "饮食与营养": {"keywords": "糖尿病 饮食营养", "emoji": "🥗"}
 }
 
-# --- 帮助函数：判断日期是否在本周 (临时测试版本) ---
+# --- 帮助函数：判断日期是否在本周 ---
 def is_this_week_rss(time_struct, today_date_obj):
     """
-    临时测试函数，不过滤日期，总是返回 True。
-    确保在测试完成后恢复原始的日期判断逻辑。
+    判断给定的 time_struct (来自 feedparser) 是否在本周 (周一到周日)。
+    today_date_obj 是今天的 datetime.date 对象。
     """
-    return True # 临时测试，不过滤日期
+    if not time_struct:
+        return False
+    try:
+        # feedparser 返回的 time_struct 是 time.struct_time 对象
+        article_date = datetime.date(time_struct.tm_year, time_struct.tm_mon, time_struct.tm_mday)
+
+        # 计算本周的开始 (周一) 和结束 (周日)
+        start_of_week = today_date_obj - datetime.timedelta(days=today_date_obj.weekday())
+        end_of_week = start_of_week + datetime.timedelta(days=6)
+
+        return start_of_week <= article_date <= end_of_week
+    except Exception as e:
+        print(f"    [is_this_week_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
+        return False # 如果日期无效或解析失败
 
 # --- 帮助函数：清理 HTML ---
 def clean_html(raw_html):
