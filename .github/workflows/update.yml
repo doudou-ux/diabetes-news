@@ -1,34 +1,50 @@
-name: Update Diabetes News
+name: Update Diabetes News Daily
 
 on:
   schedule:
-    - cron: '0 16 * * *'  # 每天 0 点（北京时间）运行一次
-  workflow_dispatch:      # 允许你手动运行
+    # 每天的 UTC 时间 16:00 运行 (对应北京时间 00:00)
+    # 您可以根据需要调整时间，格式是 cron 格式
+    - cron: '0 16 * * *'
+  workflow_dispatch: # 允许手动触发
 
 jobs:
-  update-news:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允许 action 将更改写回仓库
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repository # 步骤1：签出您的代码
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python # 步骤2：设置 Python 环境
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.10' # 建议使用一个较新的稳定Python版本
 
-      - name: Install dependencies
+      - name: Install dependencies # 步骤3：安装依赖
         run: |
-          pip install feedparser jinja2
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 feedparser # <--- 在这里添加了 feedparser
 
-      - name: Run fetch_news.py
-        run: python fetch_news.py
+      - name: Run news fetch script to generate HTML # 步骤4：运行 Python 脚本
+        run: python fetch_news.py # 确保这里的脚本名与您的 Python 文件名一致
+        env:
+          # GITHUB_REPOSITORY 会自动被GitHub Actions填充为 owner/repo_name
+          # GITHUB_ACTOR 会自动被GitHub Actions填充为触发工作流的用户
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          APP_TIMEZONE: Asia/Shanghai # 设置时区环境变量，让Python脚本可以生成正确的本地时间
 
-      - name: Commit and push changes
+      - name: Commit and push index.html # 步骤5：提交并推送更改
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git commit -m "自动更新新闻 📰" || echo "Nothing to commit"
-          git push
+          git config --global user.name 'github-actions[bot]' # 配置 git 用户名
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com' # 配置 git 邮箱
+          git add index.html # 只添加明确更改的 index.html 文件
+          # 检查是否有实际更改，只有在有更改时才提交
+          if ! git diff --staged --quiet; then
+            git commit -m "自动化更新：每日糖尿病资讯 (Google News RSS) $(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
+            git push
+          else
+            echo "No changes to index.html to commit."
+          fi
