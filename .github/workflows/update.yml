@@ -25,7 +25,8 @@ jobs:
       - name: Install dependencies # 步骤3：安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4 feedparser # <--- 在这里添加了 feedparser
+          # 安装所有需要的库: requests, beautifulsoup4, feedparser, deep-translator
+          pip install requests beautifulsoup4 feedparser deep-translator
 
       - name: Run news fetch script to generate HTML # 步骤4：运行 Python 脚本
         run: python fetch_news.py # 确保这里的脚本名与您的 Python 文件名一致
@@ -43,7 +44,10 @@ jobs:
           git add index.html # 只添加明确更改的 index.html 文件
           # 检查是否有实际更改，只有在有更改时才提交
           if ! git diff --staged --quiet; then
-            git commit -m "自动化更新：每日糖尿病资讯 (Google News RSS) $(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S')"
+            # 使用上海时区格式化日期时间
+            commit_message="自动化更新：每日糖尿病资讯 ($(TZ='Asia/Shanghai' date +'%Y-%m-%d %H:%M:%S'))"
+            echo "Committing changes with message: $commit_message"
+            git commit -m "$commit_message"
             git push
           else
             echo "No changes to index.html to commit."
