@@ -1,1 +1,264 @@
-<!-- HTML 模板内容将在此插入 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>糖尿病前沿资讯</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 淡雅背景色 */
+        }
+        .news-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100%;
+            background-color: #ffffff; /* 卡片背景白色 */
+            border-radius: 0.5rem; /* md rounded corners */
+        }
+        .news-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .category-section {
+            background-color: #ffffff; /* 分类区块背景白色 */
+            border-radius: 0.75rem; /* xl rounded corners */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* subtle shadow */
+            padding: 1.25rem; /* p-5 */
+        }
+        @media (min-width: 768px) {
+            .category-section {
+                padding: 2rem; /* md:p-8 */
+            }
+        }
+        .category-title-text {
+            border-bottom: 3px solid #3b82f6; /* 蓝色下划线 */
+            padding-bottom: 0.75rem; /* pb-3 */
+            margin-bottom: 1.75rem; /* mb-7 */
+            color: #1e40af; /* 深蓝色标题 */
+            font-size: 1.5rem; /* text-2xl */
+        }
+        @media (min-width: 768px) {
+            .category-title-text {
+                font-size: 1.875rem; /* md:text-3xl */
+            }
+        }
+        .news-item-link {
+            color: #2563eb; /* 链接颜色 */
+            text-decoration: none;
+            font-weight: 600; /* font-semibold */
+        }
+        .news-item-link:hover {
+            text-decoration: underline;
+            color: #1d4ed8; /* 悬停时更深的蓝色 */
+        }
+        .source-tag, .time-tag {
+            padding: 0.25rem 0.75rem; /* px-3 py-1 */
+            border-radius: 0.375rem; /* rounded-md */
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 500; /* font-medium */
+            line-height: 1.25;
+        }
+        .source-tag { background-color: #e0e7ff; color: #3730a3; }
+        .time-tag { background-color: #d1fae5; color: #065f46; }
+        .card-content { flex-grow: 1; }
+        .card-footer { margin-top: auto; /* Pushes footer to bottom */ }
+        .header-main-title {
+            font-size: 1.875rem; /* text-3xl */
+        }
+        @media (min-width: 640px) { /* sm breakpoint */
+            .header-main-title { font-size: 2.25rem; } /* sm:text-4xl */
+        }
+        @media (min-width: 768px) { /* md breakpoint */
+            .header-main-title { font-size: 3rem; } /* md:text-5xl */
+        }
+        .main-container { padding: 1rem; } /* p-4 */
+        @media (min-width: 768px) { /* md breakpoint */
+            .main-container { padding: 2rem; } /* md:p-8 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+    <div class="container mx-auto main-container">
+        <header class="text-center mb-10 md:mb-16">
+            <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
+            <p class="text-gray-600 mt-3 text-base md:text-lg">本周最新动态（自动更新于：2025年05月07日 09:07:45）</p>
+            <p class="text-sm text-orange-600 mt-2 font-semibold">提示：当前显示为模拟数据。请在实际部署时替换为真实新闻源。</p>
+        </header>
+        <div id="news-content" class="space-y-12">
+
+            <section class="category-section">
+                <h2 class="font-semibold category-title-text">🔬 最新研究</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    最新研究的示例新闻1：一项重大发现
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">这是关于“最新研究”的一条模拟新闻摘要。内容关注最新的动态和进展，帮助您了解行业前沿。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源A</span>
+                            <span class="time-tag">1 天前</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    最新研究的示例新闻2：专家深度解读
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">来自“最新研究”领域的专家对近期热点进行了深入解读，提供了宝贵的见解和分析。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源B</span>
+                            <span class="time-tag">9 小时前</span>
+                        </div>
+                    </div>
+                    </div></section>
+            <section class="category-section">
+                <h2 class="font-semibold category-title-text">💊 治疗进展</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    治疗进展的示例新闻1：一项重大发现
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">这是关于“治疗进展”的一条模拟新闻摘要。内容关注最新的动态和进展，帮助您了解行业前沿。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源A</span>
+                            <span class="time-tag">1 天前</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    治疗进展的示例新闻2：专家深度解读
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">来自“治疗进展”领域的专家对近期热点进行了深入解读，提供了宝贵的见解和分析。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源B</span>
+                            <span class="time-tag">9 小时前</span>
+                        </div>
+                    </div>
+                    </div></section>
+            <section class="category-section">
+                <h2 class="font-semibold category-title-text">🏃‍♀️ 预防与生活方式</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    预防与生活方式的示例新闻1：一项重大发现
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">这是关于“预防与生活方式”的一条模拟新闻摘要。内容关注最新的动态和进展，帮助您了解行业前沿。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源A</span>
+                            <span class="time-tag">1 天前</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    预防与生活方式的示例新闻2：专家深度解读
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">来自“预防与生活方式”领域的专家对近期热点进行了深入解读，提供了宝贵的见解和分析。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源B</span>
+                            <span class="time-tag">9 小时前</span>
+                        </div>
+                    </div>
+                    </div></section>
+            <section class="category-section">
+                <h2 class="font-semibold category-title-text">🩺 并发症管理</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    并发症管理的示例新闻1：一项重大发现
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">这是关于“并发症管理”的一条模拟新闻摘要。内容关注最新的动态和进展，帮助您了解行业前沿。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源A</span>
+                            <span class="time-tag">1 天前</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    并发症管理的示例新闻2：专家深度解读
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">来自“并发症管理”领域的专家对近期热点进行了深入解读，提供了宝贵的见解和分析。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源B</span>
+                            <span class="time-tag">9 小时前</span>
+                        </div>
+                    </div>
+                    </div></section>
+            <section class="category-section">
+                <h2 class="font-semibold category-title-text">🥗 饮食与营养</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 news-grid">
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    饮食与营养的示例新闻1：一项重大发现
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">这是关于“饮食与营养”的一条模拟新闻摘要。内容关注最新的动态和进展，帮助您了解行业前沿。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源A</span>
+                            <span class="time-tag">1 天前</span>
+                        </div>
+                    </div>
+                    
+                    <div class="news-card shadow-md hover:shadow-lg p-5">
+                        <div class="card-content">
+                            <h3 class="text-lg mb-2">
+                                <a href="javascript:void(0);"  class="news-item-link">
+                                    饮食与营养的示例新闻2：专家深度解读
+                                </a>
+                            </h3>
+                            <p class="text-gray-600 text-sm mb-4 leading-relaxed">来自“饮食与营养”领域的专家对近期热点进行了深入解读，提供了宝贵的见解和分析。</p>
+                        </div>
+                        <div class="card-footer text-xs text-gray-500 flex flex-wrap gap-2 items-center pt-3 border-t border-gray-200">
+                            <span class="source-tag">模拟新闻来源B</span>
+                            <span class="time-tag">9 小时前</span>
+                        </div>
+                    </div>
+                    </div></section>
+        </div> </div> <footer class="text-center p-6 mt-12 text-gray-600 text-sm border-t border-gray-300">
+        <p>&copy; 2025 糖尿病资讯聚合. <a href="https://github.com/doudou-ux/diabetes-news" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">项目源码</a></p>
+        <p class="mt-1">本站内容仅供参考, 不构成医疗建议。</p>
+    </footer>
+</body>
+</html>
