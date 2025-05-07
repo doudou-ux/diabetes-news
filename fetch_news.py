@@ -19,6 +19,8 @@ CATEGORIES_CONFIG = {
 
 # --- 帮助函数：判断日期是否在本周 ---
 def is_this_week_rss(time_struct, today_date_obj):
+    return True # 临时测试，不过滤日期
+def is_this_week_rss(time_struct, today_date_obj):
     """
     判断给定的 time_struct (来自 feedparser) 是否在本周 (周一到周日)。
     today_date_obj 是今天的 datetime.date 对象。
