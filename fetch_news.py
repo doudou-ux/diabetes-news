@@ -7,115 +7,114 @@ import time
 import requests
 import feedparser
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin # 用于爬虫构建完整URL
-from deep_translator import GoogleTranslator # 用于翻译
+from urllib.parse import urljoin
+from deep_translator import GoogleTranslator
+try:
+    from Bio import Entrez # For PubMed API
+except ImportError:
+    print("错误：未找到 Biopython 库。请通过 'pip install biopython' 安装。")
+    Entrez = None # Set Entrez to None if import fails
 
 # --- (1) 配置权威 RSS 源 ---
-# 添加 priority 字段，数值越大越优先
 AUTHORITATIVE_RSS_FEEDS = [
+    # --- 现有权威源 ---
     {
         "url": "https://www.medscape.com/rss/public/diabetes.xml",
-        "source_override": "Medscape Diabetes",
-        "target_categories": ["最新研究", "治疗进展"],
-        "priority": 10
+        "source_override": "Medscape Diabetes", "target_categories": ["最新研究", "治疗进展"],
+        "priority": 10, "needs_translation": True
     },
     {
         "url": "https://www.healio.com/news/endocrinology/rss",
-        "source_override": "Healio Endocrinology",
-        "target_categories": ["最新研究", "治疗进展"],
-        "priority": 9
+        "source_override": "Healio Endocrinology", "target_categories": ["最新研究", "治疗进展"],
+        "priority": 9, "needs_translation": True
     },
     {
         "url": "https://www.diabettech.com/feed/",
-        "source_override": "Diabettech",
-        "target_categories": ["治疗进展", "最新研究"], # 糖尿病技术相关
-        "priority": 8
+        "source_override": "Diabettech", "target_categories": ["治疗进展", "最新研究"],
+        "priority": 8, "needs_translation": True
     },
     {
         "url": "https://thesavvydiabetic.com/feed/",
-        "source_override": "The Savvy Diabetic",
-        "target_categories": ["患者故事与心理支持", "预防与生活方式"], # 博客，经验分享
-        "priority": 7
+        "source_override": "The Savvy Diabetic", "target_categories": ["患者故事与心理支持", "预防与生活方式"],
+        "priority": 7, "needs_translation": True
     },
     {
         "url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss",
-        "source_override": "Diabetes UK 论坛",
-        "target_categories": ["患者故事与心理支持"], # 论坛讨论
-        "priority": 6
+        "source_override": "Diabetes UK 论坛", "target_categories": ["患者故事与心理支持"],
+        "priority": 6, "needs_translation": True
     },
-    # --- 请您替换或添加以下占位符，并指定 priority ---
-    # {
-    #     "url": "YOUR_PUBMED_DIABETES_RESEARCH_RSS_URL",
-    #     "source_override": "PubMed",
-    #     "target_categories": ["最新研究"],
-    #     "priority": 12
-    # },
-    # {
-    #     "url": "YOUR_ADA_DIABETES_CARE_RSS_URL",
-    #     "source_override": "Diabetes Care (ADA)",
-    #     "target_categories": ["最新研究", "治疗进展"],
-    #     "priority": 11
-    # },
+    # --- 新增权威源 ---
+    {
+        "url": "https://www.gov.uk/government/organisations/medicines-and-healthcare-products-regulatory-agency.rss",
+        "source_override": "MHRA (UK)", "target_categories": ["政策/医保信息", "治疗进展"],
+        "priority": 9, "needs_translation": True # UK Gov agency
+    },
+    {
+        "url": "https://www.fda.gov/rss.xml", # General FDA feed, might need refinement for diabetes news
+        "source_override": "FDA (US)", "target_categories": ["政策/医保信息", "治疗进展", "最新研究"],
+        "priority": 10, "needs_translation": True # US Gov agency
+    },
+    # --- 请您替换或添加以下占位符 ---
+    # { "url": "YOUR_PUBMED_RSS_URL", "source_override": "PubMed (RSS Search)", "target_categories": ["最新研究"], "priority": 12, "needs_translation": True },
+    # { "url": "YOUR_ADA_JOURNAL_RSS_URL", "source_override": "Diabetes Care (ADA)", "target_categories": ["最新研究", "治疗进展"], "priority": 11, "needs_translation": True },
 ]
 
 # --- (1b) 配置爬虫源 ---
-# 注意：这些爬虫目前不提取发布日期，可能无法通过日期过滤
 SCRAPED_SOURCES_CONFIG = [
     {
-        "name": "Breakthrough T1D News",
-        "fetch_function": "fetch_breakthrought1d_articles", # 对应的爬虫函数名
-        "source_override": "Breakthrough T1D",
-        "target_categories": ["最新研究", "治疗进展"], # 主要关于1型糖尿病研究
-        "priority": 8 # 权威机构，但爬虫稳定性可能稍差
+        "name": "Breakthrough T1D News", "fetch_function": "fetch_breakthrought1d_articles",
+        "source_override": "Breakthrough T1D", "target_categories": ["最新研究", "治疗进展"], "priority": 8
     },
     {
-        "name": "MyGlu Articles",
-        "fetch_function": "fetch_myglu_articles",
-        "source_override": "MyGlu",
-        "target_categories": ["患者故事与心理支持", "预防与生活方式"],
-        "priority": 7
+        "name": "MyGlu Articles", "fetch_function": "fetch_myglu_articles",
+        "source_override": "MyGlu", "target_categories": ["患者故事与心理支持", "预防与生活方式"], "priority": 7
     },
     {
-        "name": "DZD News (2025)", # 假设每年更新URL或爬虫逻辑
-        "fetch_function": "fetch_dzd_articles",
-        "source_override": "DZD News",
-        "target_categories": ["最新研究"],
-        "priority": 9 # 德国糖尿病研究中心
+        "name": "DZD News (2025)", "fetch_function": "fetch_dzd_articles",
+        "source_override": "DZD News", "target_categories": ["最新研究"], "priority": 9
     },
+    {
+        "name": "ADCES News", "fetch_function": "fetch_adces_articles",
+        "source_override": "ADCES News", "target_categories": ["治疗进展", "预防与生活方式", "政策/医保信息"], "priority": 8
+    },
+    {
+        "name": "PANTHER Program News", "fetch_function": "fetch_panther_articles",
+        "source_override": "PANTHER Program", "target_categories": ["最新研究", "治疗进展"], "priority": 7
+    },
+    { # 新增 NMPA
+        "name": "NMPA Policies", "fetch_function": "fetch_nmpa_articles",
+        "source_override": "NMPA", "target_categories": ["政策/医保信息", "治疗进展"], "priority": 10
+    },
+    { # 新增 PubMed API
+        "name": "PubMed API Search", "fetch_function": "fetch_pubmed_articles",
+        "source_override": "PubMed", "target_categories": ["最新研究"], "priority": 12 # Highest priority for primary research
+    },
+    { # 新增 IDF
+        "name": "IDF News", "fetch_function": "fetch_idf_articles",
+        "source_override": "IDF News", "target_categories": ["最新研究", "预防与生活方式", "政策/医保信息"], "priority": 9 # International Diabetes Federation
+    },
+    # --- Placeholder for future scrapers ---
+    # {
+    #     "name": "IMDRF", "fetch_function": "fetch_imdrf_articles", # Function not implemented
+    #     "source_override": "IMDRF", "target_categories": ["政策/医保信息", "治疗进展"], "priority": 8
+    # },
+    # {
+    #     "name": "DTx Alliance", "fetch_function": "fetch_dtx_alliance_articles", # Function not implemented
+    #     "source_override": "DTx Alliance", "target_categories": ["治疗进展", "最新研究"], "priority": 8
+    # },
 ]
 
-GOOGLE_NEWS_PRIORITY = 1 # Google News 作为补充来源，优先级较低
+GOOGLE_NEWS_PRIORITY = 1
 
 # --- (2) 配置网站展示的分类及对应的 Google News 补充关键词 ---
 CATEGORIES_CONFIG = {
-    "最新研究": {
-        "keywords": "糖尿病 最新论文 OR 糖尿病技术突破 OR 糖尿病机制研究 OR 医学会议糖尿病 OR GLP-1糖尿病 OR SGLT2糖尿病 OR 胰岛β细胞 OR 胰岛素敏感性",
-        "emoji": "🔬"
-    },
-    "治疗进展": {
-        "keywords": "糖尿病新药 OR 糖尿病适应症扩展 OR 糖尿病设备研发 OR AI辅助诊疗糖尿病 OR 达格列净 OR 司美格鲁肽 OR CGM OR 连续血糖监测 OR 胰岛素泵",
-        "emoji": "💊"
-    },
-    "饮食与营养": {
-        "keywords": "糖尿病饮食指南 OR 碳水交换表 OR 糖尿病食谱 OR 低GI饮食糖尿病 OR 高蛋白饮食糖尿病 OR 间歇性断食糖尿病 OR 膳食纤维糖尿病",
-        "emoji": "🥗"
-    },
-    "预防与生活方式": {
-        "keywords": "糖尿病运动建议 OR 糖尿病睡眠 OR 糖尿病减重 OR 控糖计划 OR 糖尿病早期筛查 OR 糖耐量异常 OR 体脂管理糖尿病 OR 糖尿病步数目标",
-        "emoji": "🏃‍♀️"
-    },
-    "并发症管理": {
-        "keywords": "糖尿病足 OR 糖尿病视网膜病变 OR 糖尿病肾病 OR 糖尿病神经病变 OR 糖网病 OR 微血管病变糖尿病 OR 尿白蛋白糖尿病",
-        "emoji": "🩺"
-    },
-    "患者故事与心理支持": {
-        "keywords": "糖尿病控糖经验 OR 糖尿病心理支持 OR 糖尿病家庭支持 OR 糖尿病患者故事 OR 糖尿病医生问答",
-        "emoji": "😊"
-    },
-    "政策/医保信息": {
-        "keywords": "糖尿病药品纳保 OR 糖尿病医保报销 OR 糖尿病社区慢病随访 OR 国家药监局糖尿病政策 OR 医保局糖尿病政策",
-        "emoji": "📄"
-    }
+    "最新研究": {"keywords": "糖尿病 最新论文 OR 糖尿病技术突破 OR 糖尿病机制研究 OR 医学会议糖尿病 OR GLP-1糖尿病 OR SGLT2糖尿病 OR 胰岛β细胞 OR 胰岛素敏感性", "emoji": "🔬"},
+    "治疗进展": {"keywords": "糖尿病新药 OR 糖尿病适应症扩展 OR 糖尿病设备研发 OR AI辅助诊疗糖尿病 OR 达格列净 OR 司美格鲁肽 OR CGM OR 连续血糖监测 OR 胰岛素泵", "emoji": "💊"},
+    "饮食与营养": {"keywords": "糖尿病饮食指南 OR 碳水交换表 OR 糖尿病食谱 OR 低GI饮食糖尿病 OR 高蛋白饮食糖尿病 OR 间歇性断食糖尿病 OR 膳食纤维糖尿病", "emoji": "🥗"},
+    "预防与生活方式": {"keywords": "糖尿病运动建议 OR 糖尿病睡眠 OR 糖尿病减重 OR 控糖计划 OR 糖尿病早期筛查 OR 糖耐量异常 OR 体脂管理糖尿病 OR 糖尿病步数目标", "emoji": "🏃‍♀️"},
+    "并发症管理": {"keywords": "糖尿病足 OR 糖尿病视网膜病变 OR 糖尿病肾病 OR 糖尿病神经病变 OR 糖网病 OR 微血管病变糖尿病 OR 尿白蛋白糖尿病", "emoji": "🩺"},
+    "患者故事与心理支持": {"keywords": "糖尿病控糖经验 OR 糖尿病心理支持 OR 糖尿病家庭支持 OR 糖尿病患者故事 OR 糖尿病医生问答", "emoji": "😊"},
+    "政策/医保信息": {"keywords": "糖尿病药品纳保 OR 糖尿病医保报销 OR 糖尿病社区慢病随访 OR 国家药监局糖尿病政策 OR 医保局糖尿病政策", "emoji": "📄"}
 }
 
 # --- 帮助函数：规范化标题 ---
@@ -128,7 +127,7 @@ def normalize_title(title):
 
 # --- 帮助函数：判断日期是否在最近一个月内 ---
 def is_within_last_month_rss(time_struct, today_date_obj):
-    if not time_struct: return False # 如果没有时间信息，则认为不在范围内
+    if not time_struct: return False
     try:
         article_date = datetime.date(time_struct.tm_year, time_struct.tm_mon, time_struct.tm_mday)
         thirty_days_ago = today_date_obj - datetime.timedelta(days=30)
@@ -143,10 +142,22 @@ def clean_html(raw_html):
     try: return BeautifulSoup(raw_html, "html.parser").get_text(separator=' ', strip=True)
     except Exception: return raw_html
 
+# --- 翻译函数 ---
+def translate_text(text, target_lang='zh-CN'):
+    if not text: return ""
+    try:
+        translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text=text, timeout=10)
+        if not translated_text or translated_text == text:
+             print(f"      翻译可能未成功或无需翻译: 原文: {text[:50]}...")
+             return text
+        print(f"      翻译成功: {text[:30]}... -> {translated_text[:30]}...")
+        return translated_text
+    except Exception as e:
+        print(f"      翻译错误: {e} - 原文: {text[:50]}...")
+        return text
+
 # --- (A) RSS 源获取函数 ---
 def fetch_articles_from_rss(rss_url, source_name_override=None):
-    # (此函数内容与 diabetes_news_fetch_dedup_priority 中的 fetch_articles_from_rss 基本相同)
-    # ... (为简洁起见，假设此函数已正确定义，与上一版本相同)
     print(f"    正在从 RSS 源获取: {rss_url} ({source_name_override or '未知源'})")
     articles = []
     try:
@@ -181,17 +192,7 @@ def fetch_articles_from_rss(rss_url, source_name_override=None):
     except Exception as e: print(f"      处理 RSS 源时发生未知错误: {e} (URL: {rss_url})")
     return articles
 
-
 # --- (B) 爬虫函数定义 ---
-def translate_text(text, target_lang='zh-CN'): # zh-CN for Simplified Chinese
-    if not text: return ""
-    try:
-        # GoogleTranslator(source='auto', target='zh') is deprecated, use 'zh-CN' or 'zh-TW'
-        return GoogleTranslator(source='auto', target=target_lang).translate(text)
-    except Exception as e:
-        print(f"      翻译错误: {e} - 原文: {text[:50]}...")
-        return text # 翻译失败则返回原文
-
 def fetch_breakthrought1d_articles():
     BASE_URL = "https://www.breakthrought1d.org/news/"
     print(f"    正在爬取: {BASE_URL}")
@@ -201,35 +202,22 @@ def fetch_breakthrought1d_articles():
         response = requests.get(BASE_URL, headers=headers, timeout=20)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
-
-        for article_el in soup.select("article"): # Element selector might need adjustment
+        for article_el in soup.select("article"):
             a_tag = article_el.select_one("h2 a")
             if not a_tag: continue
-
             title_en = a_tag.get_text(strip=True)
             link = urljoin(BASE_URL, a_tag.get("href"))
-            summary_tag = article_el.select_one("p") # Selector for summary
+            summary_tag = article_el.select_one("p")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
-            
-            # 尝试提取日期 - 这部分需要根据实际网页结构添加
-            date_str = None # Placeholder
-            time_struct = None # Placeholder
-            # Example: date_tag = article_el.select_one(".date-class")
-            # if date_tag: date_str = date_tag.get_text(strip=True)
-            # if date_str: try: time_struct = feedparser._parse_date(date_str) except: pass
+            time_struct = None # TODO: Add date extraction logic here
             if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
-
-
             title_cn = translate_text(title_en)
             summary_cn = translate_text(summary_en)
-
             articles.append({
                 "title": title_cn, "url": link, "snippet": summary_cn,
-                "source": "Breakthrough T1D", # 在 SCRAPED_SOURCES_CONFIG 中已定义
-                "time_struct": time_struct # 目前为 None
+                "source": "Breakthrough T1D", "time_struct": time_struct
             })
-    except Exception as e:
-        print(f"      爬取 Breakthrough T1D 时出错: {e}")
+    except Exception as e: print(f"      爬取 Breakthrough T1D 时出错: {e}")
     return articles
 
 def fetch_myglu_articles():
@@ -241,38 +229,26 @@ def fetch_myglu_articles():
         response = requests.get(BASE_URL, headers=headers, timeout=20)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
-
-        for item in soup.select("div.node-article"): # Element selector
+        for item in soup.select("div.node-article"):
             a_tag = item.select_one("h2 a")
             if not a_tag: continue
-
             title_en = a_tag.get_text(strip=True)
             link = urljoin(BASE_URL, a_tag.get("href"))
-            summary_tag = item.select_one("div.field-name-body div.field-item") # More specific selector
+            summary_tag = item.select_one("div.field-name-body div.field-item")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
-
-            date_str = None
-            time_struct = None
-            # Example: date_tag = item.select_one("span.date-display-single")
-            # if date_tag: date_str = date_tag.get_text(strip=True)
-            # if date_str: try: time_struct = feedparser._parse_date(date_str) except: pass
+            time_struct = None # TODO: Add date extraction logic here
             if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
-
-
             title_cn = translate_text(title_en)
             summary_cn = translate_text(summary_en)
-            
             articles.append({
                 "title": title_cn, "url": link, "snippet": summary_cn,
-                "source": "MyGlu", # 在 SCRAPED_SOURCES_CONFIG 中已定义
-                "time_struct": time_struct # 目前为 None
+                "source": "MyGlu", "time_struct": time_struct
             })
-    except Exception as e:
-        print(f"      爬取 MyGlu 时出错: {e}")
+    except Exception as e: print(f"      爬取 MyGlu 时出错: {e}")
     return articles
 
 def fetch_dzd_articles():
-    BASE_URL = "https://www.dzd-ev.de/en/press/press-releases/press-releases-2025/index.html" # URL may need annual update
+    BASE_URL = "https://www.dzd-ev.de/en/press/press-releases/press-releases-2025/index.html"
     print(f"    正在爬取: {BASE_URL}")
     articles = []
     try:
@@ -280,21 +256,242 @@ def fetch_dzd_articles():
         response = requests.get(BASE_URL, headers=headers, timeout=20)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
-
-        for item in soup.select("div.teaser-text"): # Element selector
+        for item in soup.select("div.teaser-text"):
             title_tag = item.select_one("a")
             if not title_tag: continue
-
             title_en = title_tag.get_text(strip=True)
             link = urljoin(BASE_URL, title_tag.get("href"))
             summary_tag = item.select_one("p")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
+            time_struct = None # TODO: Add date extraction logic here
+            # Example: date_container = item.find_previous_sibling("div", class_="news-list-date") ...
+            if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
+            title_cn = translate_text(title_en)
+            summary_cn = translate_text(summary_en)
+            articles.append({
+                "title": title_cn, "url": link, "snippet": summary_cn,
+                "source": "DZD News", "time_struct": time_struct
+            })
+    except Exception as e: print(f"      爬取 DZD News 时出错: {e}")
+    return articles
 
-            date_str = None
+def fetch_adces_articles():
+    BASE_URL = "https://www.adces.org/news"
+    print(f"    正在爬取: {BASE_URL}")
+    articles = []
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(BASE_URL, headers=headers, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        for item in soup.select("div.blog-listing > div.card"):
+            title_tag = item.select_one("h4.card-title a")
+            if not title_tag: continue
+            title_en = title_tag.get_text(strip=True)
+            link = urljoin(BASE_URL, title_tag.get("href"))
+            summary_tag = item.select_one("div.card-body p")
+            summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
+            time_struct = None # TODO: Add date extraction logic here
+            if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
+            title_cn = translate_text(title_en)
+            summary_cn = translate_text(summary_en)
+            articles.append({
+                "title": title_cn, "url": link, "snippet": summary_cn,
+                "source": "ADCES News", "time_struct": time_struct
+            })
+    except Exception as e: print(f"      爬取 ADCES News 时出错: {e}")
+    return articles
+
+def fetch_panther_articles():
+    BASE_URL = "https://www.pantherprogram.org/news-events"
+    print(f"    正在爬取: {BASE_URL}")
+    articles = []
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(BASE_URL, headers=headers, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        for item in soup.select("div.view-content > div.views-row"):
+            title_tag = item.select_one("h3 a")
+            if not title_tag: continue
+            title_en = title_tag.get_text(strip=True)
+            link = urljoin(BASE_URL, title_tag.get("href"))
+            summary_tag = item.select_one("div.field-content p")
+            summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
+            time_struct = None # TODO: Add date extraction logic here
+            if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
+            title_cn = translate_text(title_en)
+            summary_cn = translate_text(summary_en)
+            articles.append({
+                "title": title_cn, "url": link, "snippet": summary_cn,
+                "source": "PANTHER Program", "time_struct": time_struct
+            })
+    except Exception as e: print(f"      爬取 PANTHER Program 时出错: {e}")
+    return articles
+
+# 新增 NMPA 爬虫函数
+def fetch_nmpa_articles():
+    # 注意: NMPA 网站结构可能经常变化，选择器需要验证和维护
+    url = "https://www.nmpa.gov.cn/yaowu/zhengce/zhengcefabu.html" # 政策发布页面
+    print(f"    正在爬取: {url}")
+    articles = []
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        # NMPA 页面有时编码可能是 GBK 或 GB2312，如果乱码可以尝试
+        # response.encoding = response.apparent_encoding # 尝试自动检测
+        response.encoding = 'utf-8' # 假设是 UTF-8
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # --- 选择器需要根据实际页面调整 ---
+        # 以下是基于假设的结构，您需要用浏览器开发者工具检查实际元素
+        news_list_container = soup.select_one(".list") # 假设列表在 class="list" 的元素内
+        if not news_list_container:
+             print(f"      错误: 未能在 NMPA 页面找到新闻列表容器。")
+             return []
+
+        for item in news_list_container.select("li"): # 假设每个新闻是 <li>
+            a_tag = item.select_one("a")
+            if not a_tag or not a_tag.get("href"): continue
+
+            title = a_tag.get_text(strip=True)
+            link = urljoin(url, a_tag.get("href"))
+
+            # NMPA 政策发布通常没有摘要，snippet 可以为空或用标题
+            snippet = title
+
+            # 尝试提取日期 (通常在 <li> 下的 <span>)
+            date_tag = item.select_one("span")
+            date_str = date_tag.get_text(strip=True) if date_tag else None
             time_struct = None
-            # Example: date_container = item.find_previous_sibling("div", class_="news-list-date")
-            # if date_container: date_str = date_container.get_text(strip=True)
-            # if date_str: try: time_struct = feedparser._parse_date(date_str) except: pass
+            if date_str:
+                try:
+                    # 尝试解析 YYYY-MM-DD 格式
+                    dt_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+                    time_struct = dt_obj.timetuple()
+                    print(f"      成功解析 NMPA 日期: {date_str}")
+                except ValueError:
+                    print(f"      警告: 未能解析 NMPA 日期格式: {date_str}")
+            else:
+                 print(f"      警告: 未能从 {link} 提取发布日期。")
+
+            # NMPA 内容是中文，不需要翻译
+            articles.append({
+                "title": title, "url": link, "snippet": snippet,
+                "source": "NMPA", "time_struct": time_struct
+            })
+    except Exception as e: print(f"      爬取 NMPA 时出错: {e}")
+    return articles
+
+# 新增 PubMed API 函数
+def fetch_pubmed_articles():
+    if not Entrez: # Check if Biopython was imported successfully
+        print("    错误: Biopython (Entrez) 未加载，跳过 PubMed API 获取。")
+        return []
+
+    Entrez.email = os.getenv("PUBMED_API_EMAIL", "your_default_email@example.com") # 使用环境变量或默认值
+    # 更精确的糖尿病搜索词 (示例，可调整)
+    search_term = "(diabetes[Title/Abstract]) AND (treatment[Title/Abstract] OR research[Title/Abstract] OR prevention[Title/Abstract])"
+    print(f"    正在通过 PubMed API 搜索: {search_term}")
+    articles = []
+    MAX_PUBMED_RESULTS = 20 # 获取最近的20条，然后过滤
+
+    try:
+        # 搜索文章 ID
+        handle_search = Entrez.esearch(db="pubmed", term=search_term, retmax=MAX_PUBMED_RESULTS, sort="pub date")
+        record_search = Entrez.read(handle_search)
+        handle_search.close()
+        id_list = record_search["IdList"]
+
+        if not id_list:
+            print("      PubMed API 未返回任何文章 ID。")
+            return []
+
+        print(f"      PubMed API 返回 {len(id_list)} 个文章 ID，正在获取摘要...")
+
+        # 获取文章摘要信息
+        handle_summary = Entrez.esummary(db="pubmed", id=",".join(id_list))
+        summary_record = Entrez.read(handle_summary)
+        handle_summary.close()
+
+        for docsum in summary_record:
+            title_en = docsum.get("Title", "No Title Available")
+            pmid = docsum.get("Id", "")
+            link = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else "javascript:void(0);"
+
+            # 尝试获取摘要 (Abstract)
+            # Entrez.esummary 不直接返回完整摘要，需要 Entrez.efetch 或依赖标题/来源信息
+            # 这里简化处理，使用 Journal/Source 作为摘要占位符
+            snippet_en = docsum.get("Source", "No Summary Available")
+            authors = docsum.get("AuthorList", [])
+
+            # 提取并解析日期
+            pubdate_str = docsum.get("PubDate", "") # e.g., "2025 May 1" or "2025"
+            time_struct = None
+            if pubdate_str:
+                try:
+                    # 尝试解析几种常见格式
+                    dt_obj = None
+                    try: dt_obj = datetime.datetime.strptime(pubdate_str, "%Y %b %d")
+                    except ValueError: pass
+                    if not dt_obj:
+                        try: dt_obj = datetime.datetime.strptime(pubdate_str, "%Y %b")
+                        except ValueError: pass
+                    if not dt_obj:
+                        try: dt_obj = datetime.datetime.strptime(pubdate_str, "%Y")
+                        except ValueError: pass
+                    
+                    if dt_obj:
+                        time_struct = dt_obj.timetuple()
+                        print(f"      成功解析 PubMed 日期: {pubdate_str} -> {time_struct.tm_year}-{time_struct.tm_mon}-{time_struct.tm_mday}")
+                    else:
+                        print(f"      警告: 未能解析 PubMed 日期格式: {pubdate_str}")
+
+                except Exception as date_e:
+                     print(f"      解析 PubMed 日期时出错: {date_e} - {pubdate_str}")
+            else:
+                print(f"      警告: 未能从 PubMed 获取发布日期 (PMID: {pmid})。")
+
+
+            # 翻译标题和摘要
+            title_cn = translate_text(title_en)
+            snippet_cn = translate_text(snippet_en) # 翻译 Journal/Source
+
+            articles.append({
+                "title": title_cn, "url": link, "snippet": f"{snippet_cn} (作者: {', '.join(authors)[:50]}...)", # 添加作者信息到摘要
+                "source": "PubMed", "time_struct": time_struct
+            })
+            time.sleep(0.4) # Entrez API 建议每秒不超过3次请求
+
+    except Exception as e:
+        print(f"      处理 PubMed API 时出错: {e}")
+    return articles
+
+# 新增 IDF 爬虫函数
+def fetch_idf_articles():
+    url = "https://www.idf.org/news" # 假设这是新闻列表页
+    print(f"    正在爬取: {url}")
+    articles = []
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # --- 选择器需要根据 IDF 网站实际结构调整 ---
+        # 以下是基于您之前示例的猜测
+        for item in soup.select("article.news-item, div.news-item"): # 尝试常见的类名
+            title_tag = item.select_one("h3 a, h2 a, .title a") # 尝试常见的标题标签和链接
+            if not title_tag: continue
+
+            title_en = title_tag.get_text(strip=True)
+            link = urljoin(url, title_tag.get("href"))
+
+            summary_tag = item.select_one("p, .summary, .excerpt") # 尝试常见的摘要类名或标签
+            summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
+
+            time_struct = None # TODO: Add date extraction logic here
             if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
 
             title_cn = translate_text(title_en)
@@ -302,25 +499,38 @@ def fetch_dzd_articles():
 
             articles.append({
                 "title": title_cn, "url": link, "snippet": summary_cn,
-                "source": "DZD News", # 在 SCRAPED_SOURCES_CONFIG 中已定义
-                "time_struct": time_struct # 目前为 None
+                "source": "IDF News", "time_struct": time_struct
             })
-    except Exception as e:
-        print(f"      爬取 DZD News 时出错: {e}")
+    except Exception as e: print(f"      爬取 IDF News 时出错: {e}")
     return articles
 
-# 将函数名字符串映射到实际函数对象
+# --- Placeholder functions for unimplemented scrapers ---
+# def fetch_imdrf_articles():
+#     print("    注意: IMDRF 爬虫功能尚未实现。")
+#     return []
+# def fetch_dtx_alliance_articles():
+#     print("    注意: DTx Alliance 爬虫功能尚未实现。")
+#     return []
+
+
+# 更新 SCRAPER_FUNCTIONS_MAP
 SCRAPER_FUNCTIONS_MAP = {
     "fetch_breakthrought1d_articles": fetch_breakthrought1d_articles,
     "fetch_myglu_articles": fetch_myglu_articles,
     "fetch_dzd_articles": fetch_dzd_articles,
+    "fetch_adces_articles": fetch_adces_articles,
+    "fetch_panther_articles": fetch_panther_articles,
+    "fetch_nmpa_articles": fetch_nmpa_articles, # 添加 NMPA
+    "fetch_pubmed_articles": fetch_pubmed_articles, # 添加 PubMed API
+    "fetch_idf_articles": fetch_idf_articles, # 添加 IDF
+    # "fetch_imdrf_articles": fetch_imdrf_articles, # Placeholder
+    # "fetch_dtx_alliance_articles": fetch_dtx_alliance_articles, # Placeholder
 }
 
 
-# --- HTML 生成逻辑 (与之前版本 diabetes_news_fetch_tabs_v1 一致) ---
+# --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data_sorted):
-    # (此函数内容与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同，此处省略以减少重复)
-    # 请确保您使用的是 diabetes_news_fetch_tabs_v1 中的完整 generate_html_content 函数
+    # (此函数内容与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同)
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     app_timezone = os.getenv('APP_TIMEZONE', 'UTC')
     if app_timezone != 'UTC':
@@ -446,22 +656,30 @@ if __name__ == "__main__":
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
+        needs_translation = feed_info.get("needs_translation", False)
         raw_articles_from_feed = fetch_articles_from_rss(feed_info["url"], feed_info["source_override"])
         for article_data in raw_articles_from_feed:
             if article_data["url"] in globally_seen_urls: continue
+            title_to_process = article_data["title"]
+            snippet_to_process = article_data["snippet"]
+            if needs_translation:
+                print(f"    需要翻译来自 {feed_info['source_override']} 的文章: {title_to_process[:30]}...")
+                title_to_process = translate_text(title_to_process)
+                snippet_to_process = translate_text(snippet_to_process)
+                time.sleep(0.5) 
             if is_within_last_month_rss(article_data["time_struct"], today):
-                normalized_title = normalize_title(article_data["title"])
+                normalized_title = normalize_title(title_to_process)
                 time_display_str = "未知时间"
                 if article_data["time_struct"]:
                     try: time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
                     except: pass
                 article_obj_for_storage = {
-                    "title": article_data["title"], "url": article_data["url"],
-                    "snippet": article_data["snippet"], "source": article_data["source"],
-                    "time_display_str": time_display_str, "time_struct": article_data["time_struct"],
-                    "source_priority": current_priority
+                    "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
+                    "source": article_data["source"], "time_display_str": time_display_str, 
+                    "time_struct": article_data["time_struct"], "source_priority": current_priority
                 }
                 if normalized_title not in unique_articles_candidates or \
                    current_priority > unique_articles_candidates[normalized_title]["priority"]:
@@ -474,36 +692,32 @@ if __name__ == "__main__":
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同，但调用了所有爬虫函数) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
-        fetch_function = SCRAPER_FUNCTIONS_MAP.get(scraper_info["fetch_function"])
-        if not fetch_function:
-            print(f"    错误: 未找到爬虫函数 {scraper_info['fetch_function']}")
-            continue
-        
-        current_priority = scraper_info.get("priority", 3) # 爬虫源默认优先级为3
+        # 检查函数是否存在于映射中
+        if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP:
+            print(f"    错误: 未在 SCRAPER_FUNCTIONS_MAP 中找到爬虫函数 {scraper_info['fetch_function']}")
+            continue # 跳过这个无效的配置
+
+        fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
+        current_priority = scraper_info.get("priority", 3)
         raw_articles_from_scraper = fetch_function() # 调用对应的爬虫函数
         
-        for article_data in raw_articles_from_scraper: # article_data 结构应与RSS获取的类似
+        for article_data in raw_articles_from_scraper: 
             if article_data["url"] in globally_seen_urls: continue
-            # 注意：爬虫获取的文章目前 time_struct 为 None，所以 is_within_last_month_rss 会返回 False
-            # 如果希望它们通过，需要修改 is_within_last_month_rss 或确保爬虫能提取日期
+            # 注意：爬虫获取的文章目前 time_struct 可能为 None
             if is_within_last_month_rss(article_data["time_struct"], today): # 这行可能导致爬虫内容被过滤
-                normalized_title = normalize_title(article_data["title"])
-                # time_display_str 对于爬虫内容，如果time_struct为None，则会是"未知时间"
+                normalized_title = normalize_title(article_data["title"]) # 爬虫函数内部已翻译
                 time_display_str = "未知时间"
-                if article_data.get("time_struct"): # 确保有 time_struct
+                if article_data.get("time_struct"):
                     try: time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
                     except: pass
-                else: # 如果爬虫没有提供日期，可以尝试使用一个固定文本或当天日期
-                    # time_display_str = f"抓取于 {today.strftime('%Y-%m-%d')}" # 示例
+                else: 
                     print(f"      注意: 文章 '{article_data['title'][:30]}...' 无有效发布日期，将显示'未知时间'")
-
-
                 article_obj_for_storage = {
-                    "title": article_data["title"], "url": article_data["url"],
-                    "snippet": article_data["snippet"], "source": scraper_info["source_override"],
-                    "time_display_str": time_display_str, "time_struct": article_data["time_struct"],
-                    "source_priority": current_priority
+                    "title": article_data["title"], "url": article_data["url"], "snippet": article_data["snippet"], 
+                    "source": scraper_info["source_override"], "time_display_str": time_display_str, 
+                    "time_struct": article_data["time_struct"], "source_priority": current_priority
                 }
                 if normalized_title not in unique_articles_candidates or \
                    current_priority > unique_articles_candidates[normalized_title]["priority"]:
@@ -514,17 +728,16 @@ if __name__ == "__main__":
                     print(f"      候选(爬虫): '{article_obj_for_storage['title'][:30]}...' (Prio: {current_priority})")
             else:
                  print(f"      跳过(爬虫，日期过滤): '{article_data['title'][:30]}...' (Time struct: {article_data.get('time_struct')})")
-
         time.sleep(1)
 
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
     print("\n--- 正在从 Google News RSS 获取补充新闻 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     for site_category_name, config in CATEGORIES_CONFIG.items():
         print(f"  为分类 '{site_category_name}' 从 Google News 获取补充...")
         google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(config['keywords'])}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
         raw_articles_from_google = fetch_articles_from_rss(google_news_rss_url, source_name_override=None)
-        
         for article_data in raw_articles_from_google:
             if article_data["url"] in globally_seen_urls and \
                any(article_data["url"] == cand["url"] for cand in unique_articles_candidates.values()):
@@ -536,10 +749,9 @@ if __name__ == "__main__":
                     try: time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
                     except: pass
                 article_obj_for_storage = {
-                    "title": article_data["title"], "url": article_data["url"],
-                    "snippet": article_data["snippet"], "source": article_data["source"],
-                    "time_display_str": time_display_str, "time_struct": article_data["time_struct"],
-                    "source_priority": GOOGLE_NEWS_PRIORITY
+                    "title": article_data["title"], "url": article_data["url"], "snippet": article_data["snippet"], 
+                    "source": article_data["source"], "time_display_str": time_display_str, 
+                    "time_struct": article_data["time_struct"], "source_priority": GOOGLE_NEWS_PRIORITY
                 }
                 if normalized_title not in unique_articles_candidates or \
                    GOOGLE_NEWS_PRIORITY > unique_articles_candidates[normalized_title]["priority"]:
@@ -552,6 +764,7 @@ if __name__ == "__main__":
 
     # --- 步骤四：将 unique_articles_candidates 分配到最终的分类字典中 ---
     print("\n--- 正在将去重和优先选择后的新闻分配到各分类 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     all_articles_by_site_category_temp = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
     for candidate_info in unique_articles_candidates.values():
         article_to_add = candidate_info["article_obj"]
@@ -563,6 +776,7 @@ if __name__ == "__main__":
 
     # --- 步骤五：对每个分类的文章按日期排序并截取 ---
     print("\n--- 正在对各分类新闻进行排序和截取 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     all_articles_by_site_category_final_sorted = {}
     for category_name, articles_list in all_articles_by_site_category_temp.items():
         articles_list.sort(key=lambda x: time.mktime(x["time_struct"]) if x["time_struct"] else -float('inf'), reverse=True)
