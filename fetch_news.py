@@ -20,6 +20,7 @@ CATEGORIES_CONFIG = {
 # --- 帮助函数：判断日期是否在本周 ---
 def is_this_week_rss(time_struct, today_date_obj):
     return True # 临时测试，不过滤日期
+"""
 def is_this_week_rss(time_struct, today_date_obj):
     """
     判断给定的 time_struct (来自 feedparser) 是否在本周 (周一到周日)。
@@ -39,6 +40,7 @@ def is_this_week_rss(time_struct, today_date_obj):
     except Exception as e:
         print(f"    [is_this_week_rss] 日期转换错误: {e} - Time Struct: {time_struct}")
         return False # 如果日期无效或解析失败
+"""
 
 # --- 帮助函数：清理 HTML ---
 def clean_html(raw_html):
