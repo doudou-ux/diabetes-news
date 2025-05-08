@@ -6,15 +6,12 @@ import re
 import time
 import requests # 使用 requests 进行 HTTP 调用
 import json
-import base64
-import hashlib
-import hmac
-from urllib.parse import urlparse, urlencode # 用于构建签名
-
+# 移除了不再需要的 hmac, base64, hashlib, urllib.parse (用于签名)
 import feedparser
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from deep_translator import GoogleTranslator
+# 移除了 deep_translator 的导入
+# from deep_translator import GoogleTranslator
 try:
     from Bio import Entrez # For PubMed API
 except ImportError:
@@ -22,32 +19,26 @@ except ImportError:
     Entrez = None # Set Entrez to None if import fails
 
 # --- (0) 从环境变量读取讯飞星火 API Keys ---
-# 不再需要 SPARK_APPID, SPARK_API_SECRET, SPARK_API_KEY
 SPARK_API_PASSWORD = os.getenv("SPARK_API_PASSWORD") # 读取 APIPassword
 # Spark Lite HTTP Endpoint
 SPARK_LITE_HTTP_URL = "https://spark-api-open.xf-yun.com/v1/chat/completions"
 
 # --- (1) 配置权威 RSS 源 ---
-# 添加 priority 和 needs_translation
+# (与 diabetes_news_fetch_all_sources_v2 版本相同)
 AUTHORITATIVE_RSS_FEEDS = [
-    # Medscape: 尝试主 RSS 或其他可能的链接，如果 endocrinology/rss 持续404
-    # {"url": "http://rss.medscape.com/medscaperss/home.xml", "source_override": "Medscape", "priority": 10, "needs_translation": True},
-    {"url": "https://www.medscape.com/cx/rss/professional.xml", "source_override": "Medscape Professional", "priority": 10, "needs_translation": True}, # 另一个可能的链接
-    {"url": "https://www.healio.com/sws/feed/news/endocrinology", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True}, # 这个上次成功了
-    {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True}, # 这个上次成功了
+    {"url": "https://www.medscape.com/cx/rss/professional.xml", "source_override": "Medscape Professional", "priority": 10, "needs_translation": True},
+    {"url": "https://www.healio.com/sws/feed/news/endocrinology", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True},
+    {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True},
     # {"url": "https://thesavvydiabetic.com/feed/", "source_override": "The Savvy Diabetic", "priority": 7, "needs_translation": True}, # 403
     # {"url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss", "source_override": "Diabetes UK 论坛", "priority": 6, "needs_translation": True}, # Removed by user
-    # MHRA: Atom feed 链接可能需要特定库或不同处理，暂时注释掉，或寻找标准 RSS
-    # {"url": "https://www.gov.uk/government/latest.atom?organisations%5B%5D=medicines-and-healthcare-products-regulatory-agency", "source_override": "MHRA (UK)", "priority": 9, "needs_translation": True},
-    # FDA: 尝试另一个可能的 RSS 链接
+    # {"url": "https://www.gov.uk/government/latest.atom?organisations%5B%5D=medicines-and-healthcare-products-regulatory-agency", "source_override": "MHRA (UK)", "priority": 9, "needs_translation": True}, # Atom feed, needs verification
     {"url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml", "source_override": "FDA (US) Press", "priority": 10, "needs_translation": True},
-    # --- 请您替换或添加以下占位符 ---
     # { "url": "YOUR_PUBMED_RSS_URL", "source_override": "PubMed (RSS Search)", "priority": 12, "needs_translation": True },
     # { "url": "YOUR_ADA_JOURNAL_RSS_URL", "source_override": "Diabetes Care (ADA)", "priority": 11, "needs_translation": True },
 ]
 
 # --- (1b) 配置爬虫源 ---
-# 保持之前失败的爬虫为注释状态
+# (与 diabetes_news_fetch_all_sources_v2 版本相同)
 SCRAPED_SOURCES_CONFIG = [
     {"name": "Breakthrough T1D News", "fetch_function": "fetch_breakthrought1d_articles", "source_override": "Breakthrough T1D", "priority": 8},
     # {"name": "MyGlu Articles", "fetch_function": "fetch_myglu_articles", "source_override": "MyGlu", "priority": 7}, # 404
@@ -92,20 +83,70 @@ def clean_html(raw_html):
     try: return BeautifulSoup(raw_html, "html.parser").get_text(separator=' ', strip=True)
     except Exception: return raw_html
 
-# --- 翻译函数 ---
-def translate_text(text, target_lang='zh-CN'):
-    if not text: return ""
+# --- 翻译函数 (使用讯飞星火 HTTP API) ---
+def translate_text_with_llm(text, target_lang='Chinese'): # 使用 'Chinese' 作为目标语言提示
+    """使用讯飞星火 HTTP API 进行翻译"""
+    if not text or not isinstance(text, str) or not text.strip():
+        return text # 如果文本为空或非字符串，直接返回
+    if not SPARK_API_PASSWORD:
+        print("      错误: 讯飞星火 APIPassword 未配置，无法进行 LLM 翻译。")
+        return text # 返回原文
+
+    # 限制输入长度，避免超长和过多 token 消耗
+    max_input_length = 500
+    text_to_translate = text[:max_input_length]
+
+    prompt = f"Please translate the following text to {target_lang}. Only return the translated text, without any introduction or explanation.\n\nText to translate:\n{text_to_translate}"
+
+    print(f"      正在调用讯飞星火 HTTP API 翻译: {text_to_translate[:30]}...")
+
     try:
-        translated_text = GoogleTranslator(source='auto', target=target_lang).translate(text=text, timeout=10)
-        if not translated_text or translated_text == text: return text
-        print(f"      翻译成功: {text[:30]}... -> {translated_text[:30]}...")
-        return translated_text
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {SPARK_API_PASSWORD}"
+        }
+        payload = {
+            "model": "lite",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3, # 翻译任务通常需要较低的温度以保证准确性
+            "max_tokens": int(len(text_to_translate) * 1.5) + 50 # 估算输出 token 上限
+        }
+        response = requests.post(SPARK_LITE_HTTP_URL, headers=headers, json=payload, timeout=20) # 翻译可能需要更长超时
+        response.raise_for_status()
+        response_data = response.json()
+
+        llm_output = ""
+        if 'choices' in response_data and response_data['choices']:
+            message = response_data['choices'][0].get('message', {})
+            llm_output = message.get('content', '').strip()
+        else:
+            print(f"      警告: 未知的讯飞星火 API 翻译响应结构: {response_data}")
+            return text # 返回原文
+
+        # 基本的清洗，去除可能的引号
+        cleaned_output = llm_output.strip().strip('"').strip("'")
+
+        if cleaned_output:
+            print(f"      翻译成功: {text_to_translate[:30]}... -> {cleaned_output[:30]}...")
+            return cleaned_output
+        else:
+            print(f"      警告: 讯飞星火 API 翻译返回为空。")
+            return text # 返回原文
+
+    except requests.exceptions.RequestException as req_e:
+         print(f"      调用讯飞星火 API 翻译时发生网络或HTTP错误: {req_e}")
+         if 'response' in locals() and response is not None:
+              print(f"      响应状态码: {response.status_code}")
+              try: print(f"      响应内容: {response.json()}")
+              except json.JSONDecodeError: print(f"      响应内容 (非JSON): {response.text}")
+         return text # 返回原文
     except Exception as e:
-        print(f"      翻译错误: {e} - 原文: {text[:50]}...")
-        return text
+        print(f"      调用讯飞星火 API 翻译时出错: {e}")
+        return text # 返回原文
 
 # --- (A) RSS 源获取函数 ---
 def fetch_articles_from_rss(rss_url, source_name_override=None):
+    # (与 diabetes_news_fetch_all_sources_v1 版本相同)
     print(f"    正在从 RSS 源获取: {rss_url} ({source_name_override or '未知源'})")
     articles = []
     try:
@@ -145,8 +186,7 @@ def fetch_articles_from_rss(rss_url, source_name_override=None):
     return articles
 
 # --- (B) 爬虫函数定义 ---
-# (所有爬虫函数与 diabetes_news_fetch_all_sources_v1 版本相同)
-# ... (为简洁起见，此处省略爬虫函数定义) ...
+# 现在爬虫函数内部不再调用 translate_text，翻译将在主逻辑中处理
 def fetch_breakthrought1d_articles():
     BASE_URL = "https://www.breakthrought1d.org/news/"
     print(f"    正在爬取: {BASE_URL}")
@@ -163,18 +203,18 @@ def fetch_breakthrought1d_articles():
             link = urljoin(BASE_URL, a_tag.get("href"))
             summary_tag = article_el.select_one("p")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
-            time_struct = None # 日期提取逻辑缺失
+            time_struct = None
             if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
-            title_cn = translate_text(title_en)
-            summary_cn = translate_text(summary_en)
+            # 不再翻译，返回原文
             articles.append({
-                "title": title_cn, "url": link, "snippet": summary_cn,
-                "source": "Breakthrough T1D", "time_struct": time_struct
+                "title": title_en, "url": link, "snippet": summary_en,
+                "source": "Breakthrough T1D", "time_struct": time_struct,
+                "needs_translation": True # 添加标记
             })
     except Exception as e: print(f"      爬取 Breakthrough T1D 时出错: {e}")
     return articles
 
-def fetch_myglu_articles(): # 已注释掉
+def fetch_myglu_articles():
     print("    跳过 MyGlu 爬虫 (已注释掉)")
     return []
 
@@ -194,33 +234,31 @@ def fetch_dzd_articles():
             link = urljoin(BASE_URL, title_tag.get("href"))
             summary_tag = item.select_one("p")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
-            time_struct = None # 日期提取逻辑缺失
+            time_struct = None
             if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
-            title_cn = translate_text(title_en)
-            summary_cn = translate_text(summary_en)
+            # 不再翻译，返回原文
             articles.append({
-                "title": title_cn, "url": link, "snippet": summary_cn,
-                "source": "DZD News", "time_struct": time_struct
+                "title": title_en, "url": link, "snippet": summary_en,
+                "source": "DZD News", "time_struct": time_struct,
+                "needs_translation": True # 添加标记
             })
     except Exception as e: print(f"      爬取 DZD News 时出错: {e}")
     return articles
 
-def fetch_adces_articles(): # 已注释掉
+def fetch_adces_articles():
     print("    跳过 ADCES News 爬虫 (已注释掉)")
     return []
 
-def fetch_panther_articles(): # 已注释掉
+def fetch_panther_articles():
     print("    跳过 PANTHER Program 爬虫 (已注释掉)")
     return []
 
-def fetch_nmpa_articles(): # 已注释掉
+def fetch_nmpa_articles():
     print("    跳过 NMPA 爬虫 (已注释掉)")
     return []
 
 def fetch_pubmed_articles():
-    if not Entrez:
-        print("    错误: Biopython (Entrez) 未加载，跳过 PubMed API 获取。")
-        return []
+    if not Entrez: return []
     Entrez.email = os.getenv("PUBMED_API_EMAIL", "default_email@example.com")
     search_term = "(diabetes[Title/Abstract]) AND (treatment[Title/Abstract] OR research[Title/Abstract] OR prevention[Title/Abstract])"
     print(f"    正在通过 PubMed API 搜索: {search_term}")
@@ -231,9 +269,7 @@ def fetch_pubmed_articles():
         record_search = Entrez.read(handle_search)
         handle_search.close()
         id_list = record_search["IdList"]
-        if not id_list:
-            print("      PubMed API 未返回任何文章 ID。")
-            return []
+        if not id_list: return []
         print(f"      PubMed API 返回 {len(id_list)} 个文章 ID，正在获取摘要...")
         handle_summary = Entrez.esummary(db="pubmed", id=",".join(id_list))
         summary_record = Entrez.read(handle_summary)
@@ -257,14 +293,13 @@ def fetch_pubmed_articles():
                     if not dt_obj:
                         try: dt_obj = datetime.datetime.strptime(pubdate_str, "%Y")
                         except ValueError: pass
-                    if dt_obj:
-                        time_struct = dt_obj.timetuple()
+                    if dt_obj: time_struct = dt_obj.timetuple()
                 except Exception as date_e: print(f"      解析 PubMed 日期时出错: {date_e} - {pubdate_str}")
-            title_cn = translate_text(title_en)
-            snippet_cn = translate_text(snippet_en)
+            # 不再翻译，返回原文
             articles.append({
-                "title": title_cn, "url": link, "snippet": f"{snippet_cn} (作者: {', '.join(authors)[:50]}...)",
-                "source": "PubMed", "time_struct": time_struct
+                "title": title_en, "url": link, "snippet": f"{snippet_en} (作者: {', '.join(authors)[:50]}...)",
+                "source": "PubMed", "time_struct": time_struct,
+                "needs_translation": True # 添加标记
             })
             time.sleep(0.4)
     except Exception as e: print(f"      处理 PubMed API 时出错: {e}")
@@ -286,13 +321,13 @@ def fetch_idf_articles():
             link = urljoin(url, title_tag.get("href"))
             summary_tag = item.select_one("p, .summary, .excerpt")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
-            time_struct = None # 日期提取逻辑缺失
+            time_struct = None
             if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。")
-            title_cn = translate_text(title_en)
-            summary_cn = translate_text(summary_en)
+            # 不再翻译，返回原文
             articles.append({
-                "title": title_cn, "url": link, "snippet": summary_cn,
-                "source": "IDF News", "time_struct": time_struct
+                "title": title_en, "url": link, "snippet": summary_en,
+                "source": "IDF News", "time_struct": time_struct,
+                "needs_translation": True # 添加标记
             })
     except Exception as e: print(f"      爬取 IDF News 时出错: {e}")
     return articles
@@ -308,17 +343,15 @@ SCRAPER_FUNCTIONS_MAP = {
     "fetch_idf_articles": fetch_idf_articles,
 }
 
-# --- (C) 使用讯飞星火 HTTP API 进行动态分类 (修正认证方式) ---
+# --- (C) 使用讯飞星火 HTTP API 进行动态分类 ---
 def categorize_article_with_llm(article_obj):
-    """使用讯飞星火 HTTP API 对文章进行分类"""
+    # (与 diabetes_news_fetch_llm_http_categorization_v2 版本相同)
     if not SPARK_API_PASSWORD:
         print("      错误: 讯飞星火 APIPassword 未配置，无法进行 LLM 分类。将归入'综合资讯'。")
         return "综合资讯"
-
     title = article_obj.get("title", "")
     snippet = article_obj.get("snippet", "")
     text_to_classify = f"标题：{title}\n摘要：{snippet[:300]}"
-
     prompt = f"""请根据以下文章内容，判断它最符合下列哪个分类？请严格从列表中选择一个，并只返回分类名称，不要添加任何其他解释或文字。
 
 可选分类列表：{', '.join(VALID_CATEGORY_NAMES)}
@@ -327,45 +360,21 @@ def categorize_article_with_llm(article_obj):
 {text_to_classify}
 
 最合适的分类名称是："""
-
     print(f"      正在调用讯飞星火 HTTP API 对 '{title[:30]}...' 进行分类...")
-
     try:
-        # 1. 构造请求头 (使用 Bearer Token 认证)
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {SPARK_API_PASSWORD}"
-        }
-
-        # 2. 构造请求体
-        payload = {
-            "model": "lite", # 指定使用 Spark Lite 模型
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.5,
-            "max_tokens": 50
-        }
-
-        # 3. 发送 POST 请求
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {SPARK_API_PASSWORD}"}
+        payload = {"model": "lite", "messages": [{"role": "user", "content": prompt}], "temperature": 0.5, "max_tokens": 50}
         response = requests.post(SPARK_LITE_HTTP_URL, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
-
-        # 4. 解析 JSON 响应
         response_data = response.json()
-
-        # 5. 提取模型回答
         llm_output = ""
         if 'choices' in response_data and response_data['choices']:
             message = response_data['choices'][0].get('message', {})
             llm_output = message.get('content', '').strip()
-        elif 'payload' in response_data and 'choices' in response_data['payload'] and response_data['payload']['choices']:
-             llm_output = response_data['payload']['choices']['text'][0].strip()
         else:
-            print(f"      警告: 未知的讯飞星火 API 响应结构: {response_data}")
+            print(f"      警告: 未知的讯飞星火 API 翻译响应结构: {response_data}")
             llm_output = ""
-
         print(f"      讯飞星火 API 返回: '{llm_output}'")
-
-        # 6. 验证并返回分类
         cleaned_output = llm_output.strip().replace("\"", "").replace("'", "").replace("：","").replace(":","")
         if cleaned_output in VALID_CATEGORY_NAMES:
             print(f"      文章 '{title[:30]}...' 成功分类到 '{cleaned_output}'")
@@ -373,7 +382,6 @@ def categorize_article_with_llm(article_obj):
         else:
             print(f"      警告: 讯飞星火 API 返回的分类 '{cleaned_output}' (原始: '{llm_output}') 无效或不在列表中。将归入'综合资讯'。")
             return "综合资讯"
-
     except requests.exceptions.RequestException as req_e:
          print(f"      调用讯飞星火 API 时发生网络或HTTP错误: {req_e}")
          if 'response' in locals() and response is not None:
@@ -387,7 +395,8 @@ def categorize_article_with_llm(article_obj):
 
 # --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data_sorted):
-    # (此函数内容与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同)
+    # (与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同)
+    # ... (省略 HTML 生成代码) ...
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     app_timezone = os.getenv('APP_TIMEZONE', 'UTC')
     if app_timezone != 'UTC':
@@ -549,30 +558,44 @@ if __name__ == "__main__":
     globally_seen_urls = set()
     today = datetime.date.today()
     MAX_ARTICLES_PER_CATEGORY = 10
-    MAX_LLM_CALLS = 50 
+    MAX_LLM_CALLS = 100 # 适当增加 LLM 调用次数上限 (翻译+分类)
     llm_call_count = 0
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
         needs_translation = feed_info.get("needs_translation", False)
         raw_articles_from_feed = fetch_articles_from_rss(feed_info["url"], feed_info["source_override"])
         for article_data in raw_articles_from_feed:
             if article_data["url"] in globally_seen_urls: continue
+            
             title_to_process = article_data["title"]
             snippet_to_process = article_data["snippet"]
-            if needs_translation:
-                title_to_process = translate_text(title_to_process)
-                snippet_to_process = translate_text(snippet_to_process)
-                time.sleep(0.5) 
+            
+            # 调用 LLM 进行翻译 (如果需要)
+            if needs_translation and SPARK_API_PASSWORD and llm_call_count < MAX_LLM_CALLS:
+                print(f"    需要翻译来自 {feed_info['source_override']} 的文章: {title_to_process[:30]}...")
+                translated_title = translate_text_with_llm(title_to_process)
+                llm_call_count += 1 # 计入调用次数
+                time.sleep(1.1) # 调用间隔
+                translated_snippet = translate_text_with_llm(snippet_to_process)
+                llm_call_count += 1
+                time.sleep(1.1)
+                # 只有当翻译成功时才替换原文 (translate_text_with_llm 失败时返回原文)
+                title_to_process = translated_title
+                snippet_to_process = translated_snippet
+            elif needs_translation:
+                 print(f"    警告: 无法翻译来自 {feed_info['source_override']} 的文章，API Key缺失或达到调用上限。")
+
+
             if is_within_last_month_rss(article_data["time_struct"], today):
-                normalized_title = normalize_title(title_to_process)
+                normalized_title = normalize_title(title_to_process) # 使用处理后的标题
                 time_display_str = "未知时间"
                 if article_data["time_struct"]:
                     try: time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
                     except: pass
+                
                 article_obj_for_storage = {
                     "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
                     "source": article_data["source"], "time_display_str": time_display_str, 
@@ -589,23 +612,43 @@ if __name__ == "__main__":
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
         if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP: continue
         fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
         current_priority = scraper_info.get("priority", 3)
-        raw_articles_from_scraper = fetch_function()
+        raw_articles_from_scraper = fetch_function() # 爬虫函数内部不再翻译
+        
         for article_data in raw_articles_from_scraper: 
             if article_data["url"] in globally_seen_urls: continue
+
+            title_to_process = article_data["title"]
+            snippet_to_process = article_data["snippet"]
+            needs_translation = article_data.get("needs_translation", False) # 检查爬虫是否标记需要翻译
+
+            # 调用 LLM 进行翻译 (如果需要)
+            if needs_translation and SPARK_API_PASSWORD and llm_call_count < MAX_LLM_CALLS:
+                print(f"    需要翻译来自 {scraper_info['source_override']} 的文章: {title_to_process[:30]}...")
+                translated_title = translate_text_with_llm(title_to_process)
+                llm_call_count += 1
+                time.sleep(1.1)
+                translated_snippet = translate_text_with_llm(snippet_to_process)
+                llm_call_count += 1
+                time.sleep(1.1)
+                title_to_process = translated_title
+                snippet_to_process = translated_snippet
+            elif needs_translation:
+                print(f"    警告: 无法翻译来自 {scraper_info['source_override']} 的文章，API Key缺失或达到调用上限。")
+
+
             if is_within_last_month_rss(article_data["time_struct"], today):
-                normalized_title = normalize_title(article_data["title"])
+                normalized_title = normalize_title(title_to_process)
                 time_display_str = "未知时间"
                 if article_data.get("time_struct"):
                     try: time_display_str = time.strftime("%Y-%m-%d", article_data["time_struct"])
                     except: pass
                 else: pass 
                 article_obj_for_storage = {
-                    "title": article_data["title"], "url": article_data["url"], "snippet": article_data["snippet"], 
+                    "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
                     "source": scraper_info["source_override"], "time_display_str": time_display_str, 
                     "time_struct": article_data["time_struct"], 
                     "source_priority": current_priority, "source_type": "scraper"
@@ -620,12 +663,12 @@ if __name__ == "__main__":
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
     print("\n--- 正在从 Google News RSS 获取补充新闻 (用于全局候选池) ---")
-    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     google_search_term = "糖尿病 新闻 OR diabetes news" 
     print(f"  使用 Google News 搜索词: {google_search_term}")
     google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(google_search_term)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
     raw_articles_from_google = fetch_articles_from_rss(google_news_rss_url, source_name_override=None)
     for article_data in raw_articles_from_google:
+        # Google News 默认是中文，不需要翻译
         if article_data["url"] in globally_seen_urls and \
            any(article_data["url"] == cand["url"] for cand in unique_articles_candidates.values()):
             continue
