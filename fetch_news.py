@@ -580,7 +580,7 @@ def generate_html_content(all_news_data_sorted):
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
-    <div class="container mx-auto main-container max-w-screen-xl"> {/* Added max-w-screen-xl for better layout on large screens */}
+    <div class="container mx-auto main-container max-w-screen-xl"> {{/* Added max-w-screen-xl for better layout on large screens */}}
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
             <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
