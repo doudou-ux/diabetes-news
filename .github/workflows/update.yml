@@ -24,8 +24,8 @@ jobs:
       - name: Install dependencies # 步骤3：安装依赖
         run: |
           python -m pip install --upgrade pip
-          # 安装所有需要的库: requests, beautifulsoup4, feedparser, biopython
-          pip install requests beautifulsoup4 feedparser biopython # <-- 移除了 deep-translator
+          # 安装所有需要的库: requests, beautifulsoup4, feedparser, biopython, python-dateutil
+          pip install requests beautifulsoup4 feedparser biopython python-dateutil # <-- 在这里添加了 python-dateutil
 
       - name: Run news fetch script to generate HTML # 步骤4：运行 Python 脚本
         run: python fetch_news.py
