@@ -4,7 +4,13 @@ import html
 import os
 import re
 import time
-import requests
+import requests # 使用 requests 进行 HTTP 调用
+import json
+import base64
+import hashlib
+import hmac
+from urllib.parse import urlparse, urlencode # 用于构建签名
+
 import feedparser
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -15,18 +21,12 @@ except ImportError:
     print("错误：未找到 Biopython 库。请通过 'pip install biopython' 安装。")
     Entrez = None
 
-# 尝试导入讯飞星火 SDK (包名可能需要调整)
-try:
-    from sparkai.llm.llm import ChatSparkLLM, ChunkPrintHandler
-    from sparkai.core.messages import ChatMessage
-except ImportError:
-    print("错误：未找到 spark-ai-python 库。请通过 'pip install spark-ai-python' 安装。")
-    ChatSparkLLM = None # 设置为 None 以便后续检查
-
 # --- (0) 从环境变量读取讯飞星火 API Keys ---
 SPARK_APPID = os.getenv("SPARK_APPID")
 SPARK_API_SECRET = os.getenv("SPARK_API_SECRET")
 SPARK_API_KEY = os.getenv("SPARK_API_KEY")
+# Spark Lite HTTP Endpoint
+SPARK_LITE_HTTP_URL = "https://spark-api-open.xf-yun.com/v1/chat/completions"
 
 # --- (1) 配置权威 RSS 源 ---
 # (与 diabetes_news_fetch_all_sources_v2 版本相同)
@@ -58,7 +58,7 @@ SCRAPED_SOURCES_CONFIG = [
 GOOGLE_NEWS_PRIORITY = 1
 SOURCE_TYPE_ORDER = {'authoritative_rss': 0, 'scraper': 1, 'google_news': 2, 'unknown': 99}
 
-# --- (2) 配置网站展示的分类 (不再需要关键词进行匹配) ---
+# --- (2) 配置网站展示的分类 ---
 CATEGORIES_CONFIG = {
     "最新研究": {"emoji": "🔬"},
     "治疗进展": {"emoji": "💊"},
@@ -69,10 +69,9 @@ CATEGORIES_CONFIG = {
     "政策/医保信息": {"emoji": "📄"},
     "综合资讯": {"emoji": "📰"} # 保留兜底分类
 }
-# 将分类名称列表提取出来，用于传递给 LLM
 VALID_CATEGORY_NAMES = list(CATEGORIES_CONFIG.keys())
 if "综合资讯" in VALID_CATEGORY_NAMES:
-    VALID_CATEGORY_NAMES.remove("综合资讯") # 不让 LLM 直接选择“综合资讯”
+    VALID_CATEGORY_NAMES.remove("综合资讯")
 
 # --- 帮助函数：规范化标题 ---
 def normalize_title(title):
@@ -310,22 +309,47 @@ SCRAPER_FUNCTIONS_MAP = {
     "fetch_idf_articles": fetch_idf_articles,
 }
 
-# --- (C) 使用讯飞星火 API 进行动态分类 ---
+# --- (C) 使用讯飞星火 HTTP API 进行动态分类 ---
+def get_spark_authorization_url(api_key, api_secret):
+    """根据讯飞 API 文档生成认证 URL (用于 HTTP 请求头)"""
+    # 1. 获取当前 UTC 时间 (RFC1123 格式)
+    date_utc = datetime.datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
+    
+    # 2. 解析 URL
+    host = urlparse(SPARK_LITE_HTTP_URL).netloc
+    path = urlparse(SPARK_LITE_HTTP_URL).path
+    
+    # 3. 构造签名原文
+    tmp_signature_origin = f"host: {host}\ndate: {date_utc}\nPOST {path} HTTP/1.1"
+    
+    # 4. 使用 HMAC-SHA256 签名
+    signature_sha = hmac.new(api_secret.encode('utf-8'), tmp_signature_origin.encode('utf-8'), digestmod=hashlib.sha256).digest()
+    signature_sha_base64 = base64.b64encode(signature_sha).decode('utf-8')
+    
+    # 5. 构造 authorization 字符串
+    authorization_origin = f'api_key="{api_key}", algorithm="hmac-sha256", headers="host date request-line", signature="{signature_sha_base64}"'
+    authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode('utf-8')
+    
+    # 6. 返回包含认证信息的请求头字典
+    auth_headers = {
+        "Authorization": authorization,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Host": host,
+        "Date": date_utc
+    }
+    return auth_headers
+
 def categorize_article_with_llm(article_obj):
-    """使用讯飞星火 API 对文章进行分类"""
-    if not ChatSparkLLM:
-        print("      错误: 讯飞星火 SDK 未加载，无法进行 LLM 分类。将归入'综合资讯'。")
-        return "综合资讯"
+    """使用讯飞星火 HTTP API 对文章进行分类"""
     if not all([SPARK_APPID, SPARK_API_KEY, SPARK_API_SECRET]):
         print("      错误: 讯飞星火 API 密钥未完全配置，无法进行 LLM 分类。将归入'综合资讯'。")
         return "综合资讯"
 
     title = article_obj.get("title", "")
     snippet = article_obj.get("snippet", "")
-    # 限制传递给 LLM 的文本长度，避免超长
-    text_to_classify = f"标题：{title}\n摘要：{snippet[:300]}" # 最多取300字符摘要
+    text_to_classify = f"标题：{title}\n摘要：{snippet[:300]}"
 
-    # 构建 Prompt
     prompt = f"""请根据以下文章内容，判断它最符合下列哪个分类？请直接返回最合适的分类名称，不要添加任何其他文字。
 
 可选分类列表：{', '.join(VALID_CATEGORY_NAMES)}
@@ -335,33 +359,46 @@ def categorize_article_with_llm(article_obj):
 
 最合适的分类名称是："""
 
-    print(f"      正在调用讯飞星火 API 对 '{title[:30]}...' 进行分类...")
+    print(f"      正在调用讯飞星火 HTTP API 对 '{title[:30]}...' 进行分类...")
 
     try:
-        # 初始化 Spark LLM (请根据实际 SDK 使用方式调整模型版本等参数)
-        # Spark V3.5: spark_url="wss://spark-api.xf-yun.com/v3.5/chat"
-        # Spark V4.0 Ultra: spark_url="wss://spark-api.xf-yun.com/v4.0/chat"
-        spark = ChatSparkLLM(
-            spark_api_url="wss://spark-api.xf-yun.com/v3.5/chat", # 假设使用 V3.5
-            spark_app_id=SPARK_APPID,
-            spark_api_key=SPARK_API_KEY,
-            spark_api_secret=SPARK_API_SECRET,
-            spark_llm_domain="generalv3.5", # 对应 V3.5
-            streaming=False,
-        )
-        
-        messages = [ChatMessage(role="user", content=prompt)]
-        handler = ChunkPrintHandler() # SDK 可能需要 handler，即使 streaming=False
-        response = spark.generate([messages], callbacks=[handler]) # 使用 generate 获取完整响应
+        # 1. 获取认证头
+        auth_headers = get_spark_authorization_url(SPARK_API_KEY, SPARK_API_SECRET)
 
-        # 提取响应内容 (需要根据 SDK 返回的具体结构调整)
+        # 2. 构造请求体 (根据 Spark Lite HTTP API 文档调整)
+        # 通常需要指定模型和消息内容
+        payload = {
+            "model": "spark-lite", # 假设 Spark Lite 的模型标识符是这个
+            "messages": [{"role": "user", "content": prompt}]
+            # 可能还需要其他参数，如 temperature, max_tokens 等，可按需添加
+            # "temperature": 0.7,
+            # "max_tokens": 50
+        }
+
+        # 3. 发送 POST 请求
+        response = requests.post(SPARK_LITE_HTTP_URL, headers=auth_headers, json=payload, timeout=30) # 增加超时
+        response.raise_for_status() # 检查 HTTP 错误
+
+        # 4. 解析 JSON 响应
+        response_data = response.json()
+
+        # 5. 提取模型回答 (需要根据实际返回结构调整)
+        # 假设返回结构类似 OpenAI: response_data['choices'][0]['message']['content']
+        # 或者直接是: response_data['text'] 或 response_data['output'] 等
         llm_output = ""
-        if response.generations and response.generations[0]:
-             llm_output = response.generations[0][0].text.strip()
+        if 'choices' in response_data and response_data['choices']:
+            message = response_data['choices'][0].get('message', {})
+            llm_output = message.get('content', '').strip()
+        elif 'payload' in response_data and 'choices' in response_data['payload'] and response_data['payload']['choices']: # 另一种可能的结构
+             llm_output = response_data['payload']['choices']['text'][0].strip() # 再一种可能的结构
+        else:
+            # 如果结构未知，尝试打印整个响应以供调试
+            print(f"      警告: 未知的讯飞星火 API 响应结构: {response_data}")
+            llm_output = "" # 或尝试从其他可能的键提取
 
         print(f"      讯飞星火 API 返回: '{llm_output}'")
 
-        # 检查返回的分类是否有效
+        # 6. 验证并返回分类
         if llm_output in VALID_CATEGORY_NAMES:
             print(f"      文章 '{title[:30]}...' 成功分类到 '{llm_output}'")
             return llm_output
@@ -369,9 +406,19 @@ def categorize_article_with_llm(article_obj):
             print(f"      警告: 讯飞星火 API 返回的分类 '{llm_output}' 无效或不在列表中。将归入'综合资讯'。")
             return "综合资讯"
 
+    except requests.exceptions.RequestException as req_e:
+         print(f"      调用讯飞星火 API 时发生网络或HTTP错误: {req_e}")
+         # 可以检查 response 内容（如果存在）
+         if 'response' in locals() and response is not None:
+              print(f"      响应状态码: {response.status_code}")
+              try:
+                   print(f"      响应内容: {response.json()}")
+              except json.JSONDecodeError:
+                   print(f"      响应内容 (非JSON): {response.text}")
+         return "综合资讯"
     except Exception as e:
         print(f"      调用讯飞星火 API 时出错: {e}")
-        return "综合资讯" # 出错时归入默认分类
+        return "综合资讯"
 
 # --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data_sorted):
@@ -430,7 +477,8 @@ def generate_html_content(all_news_data_sorted):
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
             <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
-            <p class="text-sm text-gray-500 mt-2">资讯综合来源 (由 AI 智能分类)</p> </header>
+            <p class="text-sm text-gray-500 mt-2">资讯综合来源 (由 AI 智能分类)</p>
+        </header>
         <div class="tab-buttons-container" id="tabButtons">"""
     first_category = True
     for category_name_key in CATEGORIES_CONFIG.keys():
@@ -537,11 +585,12 @@ if __name__ == "__main__":
     globally_seen_urls = set()
     today = datetime.date.today()
     MAX_ARTICLES_PER_CATEGORY = 10
-    MAX_LLM_CALLS = 50 # 限制LLM调用次数，防止意外高费用
+    MAX_LLM_CALLS = 50 
     llm_call_count = 0
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
         needs_translation = feed_info.get("needs_translation", False)
@@ -576,6 +625,7 @@ if __name__ == "__main__":
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
         if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP: continue
         fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
@@ -606,6 +656,7 @@ if __name__ == "__main__":
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
     print("\n--- 正在从 Google News RSS 获取补充新闻 (用于全局候选池) ---")
+    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     google_search_term = "糖尿病 新闻 OR diabetes news" 
     print(f"  使用 Google News 搜索词: {google_search_term}")
     google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(google_search_term)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
@@ -635,42 +686,37 @@ if __name__ == "__main__":
     time.sleep(1)
 
     # --- 步骤四：使用 LLM 动态分类所有候选文章 ---
-    print("\n--- 正在对所有候选文章进行动态分类 (使用讯飞星火 API) ---")
+    print("\n--- 正在对所有候选文章进行动态分类 (使用讯飞星火 HTTP API) ---")
     all_articles_by_site_category_temp = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
     categorized_urls = set() 
-
-    # 检查 API Keys 是否都已设置
     spark_api_ready = all([SPARK_APPID, SPARK_API_KEY, SPARK_API_SECRET])
     if not spark_api_ready:
         print("警告: 讯飞星火 API 密钥未完全配置在环境变量中，将跳过 LLM 分类，所有文章归入'综合资讯'。")
-    elif not ChatSparkLLM:
-         print("警告: 讯飞星火 SDK 未加载，将跳过 LLM 分类，所有文章归入'综合资讯'。")
-         spark_api_ready = False # 标记为不可用
-
+    
     for candidate_info in unique_articles_candidates.values():
         article_to_categorize = candidate_info["article_obj"]
         article_url = article_to_categorize["url"]
         if article_url in categorized_urls: continue
 
-        best_category = "综合资讯" # 默认分类
+        best_category = "综合资讯" 
         if spark_api_ready and llm_call_count < MAX_LLM_CALLS:
             try:
                 best_category = categorize_article_with_llm(article_to_categorize)
                 llm_call_count += 1
-                time.sleep(1) # LLM API 调用之间稍作停顿，避免频率过高
+                time.sleep(1.1) # 稍微增加 LLM API 调用间隔
             except Exception as llm_e:
                 print(f"    LLM 分类时发生意外错误: {llm_e}，文章将归入'综合资讯'。")
                 best_category = "综合资讯"
         elif llm_call_count >= MAX_LLM_CALLS:
              print(f"    已达到 LLM 调用次数上限 ({MAX_LLM_CALLS})，剩余文章将归入'综合资讯'。")
              best_category = "综合资讯"
-
+        elif not spark_api_ready:
+             best_category = "综合资讯" # 如果 API keys 不可用，直接放入综合
 
         if best_category in all_articles_by_site_category_temp:
             all_articles_by_site_category_temp[best_category].append(article_to_categorize)
             categorized_urls.add(article_url) 
         else:
-            # 如果 LLM 返回了不在 CATEGORIES_CONFIG 中的分类名，也放入综合资讯
             print(f"    警告: LLM 返回的分类 '{best_category}' 不在预设分类中，归入 '综合资讯'")
             all_articles_by_site_category_temp["综合资讯"].append(article_to_categorize)
             categorized_urls.add(article_url)
