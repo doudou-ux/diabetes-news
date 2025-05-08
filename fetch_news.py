@@ -15,50 +15,42 @@ except ImportError:
     print("错误：未找到 Biopython 库。请通过 'pip install biopython' 安装。")
     Entrez = None
 
+# 尝试导入讯飞星火 SDK (包名可能需要调整)
+try:
+    from sparkai.llm.llm import ChatSparkLLM, ChunkPrintHandler
+    from sparkai.core.messages import ChatMessage
+except ImportError:
+    print("错误：未找到 spark-ai-python 库。请通过 'pip install spark-ai-python' 安装。")
+    ChatSparkLLM = None # 设置为 None 以便后续检查
+
+# --- (0) 从环境变量读取讯飞星火 API Keys ---
+SPARK_APPID = os.getenv("SPARK_APPID")
+SPARK_API_SECRET = os.getenv("SPARK_API_SECRET")
+SPARK_API_KEY = os.getenv("SPARK_API_KEY")
+
 # --- (1) 配置权威 RSS 源 ---
-# 更新了部分失效链接，注释掉了被禁止访问的源
+# (与 diabetes_news_fetch_all_sources_v2 版本相同)
 AUTHORITATIVE_RSS_FEEDS = [
-    {
-        "url": "https://www.medscape.com/endocrinology/rss", # 尝试使用内分泌板块 RSS
-        "source_override": "Medscape Endocrinology", "target_categories": ["最新研究", "治疗进展"],
-        "priority": 10, "needs_translation": True
-    },
-    {
-        "url": "https://www.healio.com/sws/feed/news/endocrinology", # 尝试这个链接
-        "source_override": "Healio Endocrinology", "target_categories": ["最新研究", "治疗进展"],
-        "priority": 9, "needs_translation": True
-    },
-    {
-        "url": "https://www.diabettech.com/feed/",
-        "source_override": "Diabettech", "target_categories": ["治疗进展", "最新研究"],
-        "priority": 8, "needs_translation": True
-    },
-    # {"url": "https://thesavvydiabetic.com/feed/", "source_override": "The Savvy Diabetic", "priority": 7, "needs_translation": True}, # <-- 403 Forbidden, 暂时注释掉
-    # {"url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss", "source_override": "Diabetes UK 论坛", "priority": 6, "needs_translation": True}, # <-- 用户要求移除
-    {
-        "url": "https://www.gov.uk/government/latest.atom?organisations%5B%5D=medicines-and-healthcare-products-regulatory-agency", # 更新为 Atom feed
-        "source_override": "MHRA (UK)", "target_categories": ["政策/医保信息", "治疗进展"],
-        "priority": 9, "needs_translation": True
-    },
-    {
-        "url": "https://www.fda.gov/news-events/fda-newsroom/press-announcements/rss.xml", # 更新为新闻发布 RSS
-        "source_override": "FDA (US) Press", "target_categories": ["政策/医保信息", "治疗进展", "最新研究"],
-        "priority": 10, "needs_translation": True
-    },
-    # --- 请您替换或添加以下占位符 ---
-    # { "url": "YOUR_PUBMED_RSS_URL", "source_override": "PubMed (RSS Search)", "target_categories": ["最新研究"], "priority": 12, "needs_translation": True },
-    # { "url": "YOUR_ADA_JOURNAL_RSS_URL", "source_override": "Diabetes Care (ADA)", "target_categories": ["最新研究", "治疗进展"], "priority": 11, "needs_translation": True },
+    {"url": "https://www.medscape.com/endocrinology/rss", "source_override": "Medscape Endocrinology", "priority": 10, "needs_translation": True},
+    {"url": "https://www.healio.com/sws/feed/news/endocrinology", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True},
+    {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True},
+    # {"url": "https://thesavvydiabetic.com/feed/", "source_override": "The Savvy Diabetic", "priority": 7, "needs_translation": True}, # 403
+    # {"url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss", "source_override": "Diabetes UK 论坛", "priority": 6, "needs_translation": True}, # Removed by user
+    {"url": "https://www.gov.uk/government/latest.atom?organisations%5B%5D=medicines-and-healthcare-products-regulatory-agency", "source_override": "MHRA (UK)", "priority": 9, "needs_translation": True},
+    {"url": "https://www.fda.gov/news-events/fda-newsroom/press-announcements/rss.xml", "source_override": "FDA (US) Press", "priority": 10, "needs_translation": True},
+    # { "url": "YOUR_PUBMED_RSS_URL", "source_override": "PubMed (RSS Search)", "priority": 12, "needs_translation": True },
+    # { "url": "YOUR_ADA_JOURNAL_RSS_URL", "source_override": "Diabetes Care (ADA)", "priority": 11, "needs_translation": True },
 ]
 
 # --- (1b) 配置爬虫源 ---
-# 暂时注释掉获取失败的爬虫源
+# (与 diabetes_news_fetch_all_sources_v2 版本相同)
 SCRAPED_SOURCES_CONFIG = [
     {"name": "Breakthrough T1D News", "fetch_function": "fetch_breakthrought1d_articles", "source_override": "Breakthrough T1D", "priority": 8},
-    # {"name": "MyGlu Articles", "fetch_function": "fetch_myglu_articles", "source_override": "MyGlu", "priority": 7}, # <-- 404, 暂时注释
+    # {"name": "MyGlu Articles", "fetch_function": "fetch_myglu_articles", "source_override": "MyGlu", "priority": 7}, # 404
     {"name": "DZD News (2025)", "fetch_function": "fetch_dzd_articles", "source_override": "DZD News", "priority": 9},
-    # {"name": "ADCES News", "fetch_function": "fetch_adces_articles", "source_override": "ADCES News", "priority": 8}, # <-- 404, 暂时注释
-    # {"name": "PANTHER Program News", "fetch_function": "fetch_panther_articles", "source_override": "PANTHER Program", "priority": 7}, # <-- 404, 暂时注释
-    # {"name": "NMPA Policies", "fetch_function": "fetch_nmpa_articles", "source_override": "NMPA", "priority": 10}, # <-- 412, 暂时注释
+    # {"name": "ADCES News", "fetch_function": "fetch_adces_articles", "source_override": "ADCES News", "priority": 8}, # 404
+    # {"name": "PANTHER Program News", "fetch_function": "fetch_panther_articles", "source_override": "PANTHER Program", "priority": 7}, # 404
+    # {"name": "NMPA Policies", "fetch_function": "fetch_nmpa_articles", "source_override": "NMPA", "priority": 10}, # 412
     {"name": "PubMed API Search", "fetch_function": "fetch_pubmed_articles", "source_override": "PubMed", "priority": 12},
     {"name": "IDF News", "fetch_function": "fetch_idf_articles", "source_override": "IDF News", "priority": 9},
 ]
@@ -66,17 +58,21 @@ SCRAPED_SOURCES_CONFIG = [
 GOOGLE_NEWS_PRIORITY = 1
 SOURCE_TYPE_ORDER = {'authoritative_rss': 0, 'scraper': 1, 'google_news': 2, 'unknown': 99}
 
-# --- (2) 配置网站展示的分类及用于内容匹配的核心关键词 ---
+# --- (2) 配置网站展示的分类 (不再需要关键词进行匹配) ---
 CATEGORIES_CONFIG = {
-    "最新研究": {"keywords": ["研究", "发现", "论文", "期刊", "科学", "实验", "机制", "突破", "基因", "细胞", "分子", "信号", "靶点", "会议摘要", "GLP-1", "SGLT2", "β细胞", "胰岛素抵抗", "PubMed", "Nature", "Lancet", "Cell", "NEJM", "JAMA"], "emoji": "🔬"},
-    "治疗进展": {"keywords": ["治疗", "疗法", "新药", "药物", "临床试验", "上市", "批准", "适应症", "医疗器械", "设备", "CGM", "连续血糖监测", "胰岛素泵", "人工智能诊疗", "AI", "达格列净", "司美格鲁肽", "替尔泊肽", "胰岛素"], "emoji": "💊"},
-    "饮食与营养": {"keywords": ["饮食", "营养", "食谱", "食材", "膳食", "碳水化合物", "蛋白质", "脂肪", "纤维", "低GI", "血糖生成指数", "热量", "卡路里", "维生素", "矿物质", "食疗", "营养师", "健康饮食", "间歇性断食"], "emoji": "🥗"},
-    "预防与生活方式": {"keywords": ["预防", "生活方式", "运动", "锻炼", "健身", "睡眠", "减重", "减肥", "体重管理", "控糖", "血糖管理", "早期筛查", "风险评估", "健康习惯", "糖耐量", "体脂", "步数", "干预"], "emoji": "🏃‍♀️"},
-    "并发症管理": {"keywords": ["并发症", "糖尿病足", "足部护理", "视网膜病变", "糖网病", "眼底", "肾病", "肾脏", "尿蛋白", "微量白蛋白", "神经病变", "心血管", "中风", "心脏病", "微血管", "管理", "监测", "治疗"], "emoji": "🩺"},
-    "患者故事与心理支持": {"keywords": ["患者", "糖友", "故事", "经验", "分享", "心路历程", "心理", "情绪", "焦虑", "抑郁", "压力", "应对", "支持", "互助", "社区", "论坛", "问答", "家庭", "共鸣"], "emoji": "😊"},
-    "政策/医保信息": {"keywords": ["政策", "法规", "医保", "报销", "国家药监局", "NMPA", "FDA", "MHRA", "卫生健康委", "卫健委", "指南", "标准", "社区管理", "慢病管理", "公共卫生", "纳保", "目录"], "emoji": "📄"},
-    "综合资讯": {"keywords": [], "emoji": "📰"}
+    "最新研究": {"emoji": "🔬"},
+    "治疗进展": {"emoji": "💊"},
+    "饮食与营养": {"emoji": "🥗"},
+    "预防与生活方式": {"emoji": "🏃‍♀️"},
+    "并发症管理": {"emoji": "🩺"},
+    "患者故事与心理支持": {"emoji": "😊"},
+    "政策/医保信息": {"emoji": "📄"},
+    "综合资讯": {"emoji": "📰"} # 保留兜底分类
 }
+# 将分类名称列表提取出来，用于传递给 LLM
+VALID_CATEGORY_NAMES = list(CATEGORIES_CONFIG.keys())
+if "综合资讯" in VALID_CATEGORY_NAMES:
+    VALID_CATEGORY_NAMES.remove("综合资讯") # 不让 LLM 直接选择“综合资讯”
 
 # --- 帮助函数：规范化标题 ---
 def normalize_title(title):
@@ -183,8 +179,6 @@ def fetch_breakthrought1d_articles():
 def fetch_myglu_articles(): # 已注释掉，因为之前404
     print("    跳过 MyGlu 爬虫 (已注释掉)")
     return []
-    # BASE_URL = "https://myglu.org/articles"
-    # ... (原爬虫代码)
 
 def fetch_dzd_articles():
     BASE_URL = "https://www.dzd-ev.de/en/press/press-releases/press-releases-2025/index.html"
@@ -216,20 +210,14 @@ def fetch_dzd_articles():
 def fetch_adces_articles(): # 已注释掉，因为之前404
     print("    跳过 ADCES News 爬虫 (已注释掉)")
     return []
-    # BASE_URL = "https://www.adces.org/news"
-    # ... (原爬虫代码)
 
 def fetch_panther_articles(): # 已注释掉，因为之前404
     print("    跳过 PANTHER Program 爬虫 (已注释掉)")
     return []
-    # BASE_URL = "https://www.pantherprogram.org/news-events"
-    # ... (原爬虫代码)
 
 def fetch_nmpa_articles(): # 已注释掉，因为之前412
     print("    跳过 NMPA 爬虫 (已注释掉)")
     return []
-    # url = "https://www.nmpa.gov.cn/yaowu/zhengce/zhengcefabu.html"
-    # ... (原爬虫代码)
 
 def fetch_pubmed_articles():
     if not Entrez:
@@ -313,45 +301,82 @@ def fetch_idf_articles():
 
 SCRAPER_FUNCTIONS_MAP = {
     "fetch_breakthrought1d_articles": fetch_breakthrought1d_articles,
-    "fetch_myglu_articles": fetch_myglu_articles, # Mapped but function body commented out
+    "fetch_myglu_articles": fetch_myglu_articles,
     "fetch_dzd_articles": fetch_dzd_articles,
-    "fetch_adces_articles": fetch_adces_articles, # Mapped but function body commented out
-    "fetch_panther_articles": fetch_panther_articles, # Mapped but function body commented out
-    "fetch_nmpa_articles": fetch_nmpa_articles, # Mapped but function body commented out
+    "fetch_adces_articles": fetch_adces_articles,
+    "fetch_panther_articles": fetch_panther_articles,
+    "fetch_nmpa_articles": fetch_nmpa_articles,
     "fetch_pubmed_articles": fetch_pubmed_articles,
     "fetch_idf_articles": fetch_idf_articles,
 }
 
-# --- (C) 动态分类函数 ---
-def determine_best_category(article_obj):
-    # (与 diabetes_news_fetch_dynamic_categorization 版本相同)
+# --- (C) 使用讯飞星火 API 进行动态分类 ---
+def categorize_article_with_llm(article_obj):
+    """使用讯飞星火 API 对文章进行分类"""
+    if not ChatSparkLLM:
+        print("      错误: 讯飞星火 SDK 未加载，无法进行 LLM 分类。将归入'综合资讯'。")
+        return "综合资讯"
+    if not all([SPARK_APPID, SPARK_API_KEY, SPARK_API_SECRET]):
+        print("      错误: 讯飞星火 API 密钥未完全配置，无法进行 LLM 分类。将归入'综合资讯'。")
+        return "综合资讯"
+
     title = article_obj.get("title", "")
     snippet = article_obj.get("snippet", "")
-    text_to_analyze = (title + " " + snippet).lower()
-    best_category = "综合资讯"
-    highest_score = 0
-    for category_name, config in CATEGORIES_CONFIG.items():
-        if category_name == "综合资讯": continue
-        keywords = config.get("keywords", [])
-        if not keywords: continue
-        current_score = 0
-        for keyword in keywords:
-            pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
-            if re.search(pattern, title.lower()): current_score += 3
-            elif re.search(pattern, snippet.lower()): current_score += 1
-        if current_score > highest_score:
-            highest_score = current_score
-            best_category = category_name
-    MIN_SCORE_THRESHOLD = 2
-    if highest_score < MIN_SCORE_THRESHOLD:
-        return "综合资讯"
-    else:
-        print(f"      文章 '{title[:30]}...' 匹配到分类 '{best_category}' (得分: {highest_score})")
-        return best_category
+    # 限制传递给 LLM 的文本长度，避免超长
+    text_to_classify = f"标题：{title}\n摘要：{snippet[:300]}" # 最多取300字符摘要
+
+    # 构建 Prompt
+    prompt = f"""请根据以下文章内容，判断它最符合下列哪个分类？请直接返回最合适的分类名称，不要添加任何其他文字。
+
+可选分类列表：{', '.join(VALID_CATEGORY_NAMES)}
+
+文章内容：
+{text_to_classify}
+
+最合适的分类名称是："""
+
+    print(f"      正在调用讯飞星火 API 对 '{title[:30]}...' 进行分类...")
+
+    try:
+        # 初始化 Spark LLM (请根据实际 SDK 使用方式调整模型版本等参数)
+        # Spark V3.5: spark_url="wss://spark-api.xf-yun.com/v3.5/chat"
+        # Spark V4.0 Ultra: spark_url="wss://spark-api.xf-yun.com/v4.0/chat"
+        spark = ChatSparkLLM(
+            spark_api_url="wss://spark-api.xf-yun.com/v3.5/chat", # 假设使用 V3.5
+            spark_app_id=SPARK_APPID,
+            spark_api_key=SPARK_API_KEY,
+            spark_api_secret=SPARK_API_SECRET,
+            spark_llm_domain="generalv3.5", # 对应 V3.5
+            streaming=False,
+        )
+        
+        messages = [ChatMessage(role="user", content=prompt)]
+        handler = ChunkPrintHandler() # SDK 可能需要 handler，即使 streaming=False
+        response = spark.generate([messages], callbacks=[handler]) # 使用 generate 获取完整响应
+
+        # 提取响应内容 (需要根据 SDK 返回的具体结构调整)
+        llm_output = ""
+        if response.generations and response.generations[0]:
+             llm_output = response.generations[0][0].text.strip()
+
+        print(f"      讯飞星火 API 返回: '{llm_output}'")
+
+        # 检查返回的分类是否有效
+        if llm_output in VALID_CATEGORY_NAMES:
+            print(f"      文章 '{title[:30]}...' 成功分类到 '{llm_output}'")
+            return llm_output
+        else:
+            print(f"      警告: 讯飞星火 API 返回的分类 '{llm_output}' 无效或不在列表中。将归入'综合资讯'。")
+            return "综合资讯"
+
+    except Exception as e:
+        print(f"      调用讯飞星火 API 时出错: {e}")
+        return "综合资讯" # 出错时归入默认分类
 
 # --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data_sorted):
-    # (与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同)
+    # (此函数内容与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同)
+    # ... (省略 HTML 生成代码) ...
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     app_timezone = os.getenv('APP_TIMEZONE', 'UTC')
     if app_timezone != 'UTC':
@@ -405,8 +430,7 @@ def generate_html_content(all_news_data_sorted):
         <header class="text-center mb-10 md:mb-16">
             <h1 class="font-bold text-blue-700 header-main-title">糖尿病前沿资讯</h1>
             <p class="text-gray-600 mt-3 text-base md:text-lg">最近一个月动态（自动更新于：<span id="updateTime">{current_time_str}</span>）</p>
-            <p class="text-sm text-gray-500 mt-2">资讯综合来源</p>
-        </header>
+            <p class="text-sm text-gray-500 mt-2">资讯综合来源 (由 AI 智能分类)</p> </header>
         <div class="tab-buttons-container" id="tabButtons">"""
     first_category = True
     for category_name_key in CATEGORIES_CONFIG.keys():
@@ -513,10 +537,11 @@ if __name__ == "__main__":
     globally_seen_urls = set()
     today = datetime.date.today()
     MAX_ARTICLES_PER_CATEGORY = 10
+    MAX_LLM_CALLS = 50 # 限制LLM调用次数，防止意外高费用
+    llm_call_count = 0
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
         needs_translation = feed_info.get("needs_translation", False)
@@ -551,7 +576,6 @@ if __name__ == "__main__":
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
         if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP: continue
         fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
@@ -582,7 +606,6 @@ if __name__ == "__main__":
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
     print("\n--- 正在从 Google News RSS 获取补充新闻 (用于全局候选池) ---")
-    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
     google_search_term = "糖尿病 新闻 OR diabetes news" 
     print(f"  使用 Google News 搜索词: {google_search_term}")
     google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(google_search_term)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
@@ -611,26 +634,49 @@ if __name__ == "__main__":
                 }
     time.sleep(1)
 
-    # --- 步骤四：动态分类所有候选文章 ---
-    print("\n--- 正在对所有候选文章进行动态分类 ---")
-    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
+    # --- 步骤四：使用 LLM 动态分类所有候选文章 ---
+    print("\n--- 正在对所有候选文章进行动态分类 (使用讯飞星火 API) ---")
     all_articles_by_site_category_temp = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
     categorized_urls = set() 
+
+    # 检查 API Keys 是否都已设置
+    spark_api_ready = all([SPARK_APPID, SPARK_API_KEY, SPARK_API_SECRET])
+    if not spark_api_ready:
+        print("警告: 讯飞星火 API 密钥未完全配置在环境变量中，将跳过 LLM 分类，所有文章归入'综合资讯'。")
+    elif not ChatSparkLLM:
+         print("警告: 讯飞星火 SDK 未加载，将跳过 LLM 分类，所有文章归入'综合资讯'。")
+         spark_api_ready = False # 标记为不可用
+
     for candidate_info in unique_articles_candidates.values():
         article_to_categorize = candidate_info["article_obj"]
         article_url = article_to_categorize["url"]
         if article_url in categorized_urls: continue
-        best_category = determine_best_category(article_to_categorize)
+
+        best_category = "综合资讯" # 默认分类
+        if spark_api_ready and llm_call_count < MAX_LLM_CALLS:
+            try:
+                best_category = categorize_article_with_llm(article_to_categorize)
+                llm_call_count += 1
+                time.sleep(1) # LLM API 调用之间稍作停顿，避免频率过高
+            except Exception as llm_e:
+                print(f"    LLM 分类时发生意外错误: {llm_e}，文章将归入'综合资讯'。")
+                best_category = "综合资讯"
+        elif llm_call_count >= MAX_LLM_CALLS:
+             print(f"    已达到 LLM 调用次数上限 ({MAX_LLM_CALLS})，剩余文章将归入'综合资讯'。")
+             best_category = "综合资讯"
+
+
         if best_category in all_articles_by_site_category_temp:
             all_articles_by_site_category_temp[best_category].append(article_to_categorize)
             categorized_urls.add(article_url) 
         else:
+            # 如果 LLM 返回了不在 CATEGORIES_CONFIG 中的分类名，也放入综合资讯
+            print(f"    警告: LLM 返回的分类 '{best_category}' 不在预设分类中，归入 '综合资讯'")
             all_articles_by_site_category_temp["综合资讯"].append(article_to_categorize)
             categorized_urls.add(article_url)
 
     # --- 步骤五：对每个分类的文章按来源类型和日期排序并截取 ---
     print("\n--- 正在对各分类新闻进行排序和截取 ---")
-    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     all_articles_by_site_category_final_sorted = {}
     for category_name, articles_list in all_articles_by_site_category_temp.items():
         articles_list.sort(key=lambda x: (
