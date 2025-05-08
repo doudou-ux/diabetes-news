@@ -26,18 +26,18 @@ SPARK_API_SECRET = os.getenv("SPARK_API_SECRET")
 # --- (1) 配置权威 RSS 源 ---
 AUTHORITATIVE_RSS_FEEDS = [
     # {"url": "https://www.medscape.com/cx/rss/professional.xml", "source_override": "Medscape Professional", "priority": 10, "needs_translation": True}, # Original - 404
-    {"url": "http://rss.medscape.com/medscapetoday.rss", "source_override": "Medscape Today", "priority": 10, "needs_translation": True}, # 尝试新的 Medscape 链接
+    {"url": "http://rss.medscape.com/medscapetoday.rss", "source_override": "Medscape Today", "priority": 10, "needs_translation": True}, # 尝试新的 Medscape 链接 (可能不稳定，易出现DNS解析错误)
     {"url": "https://www.healio.com/sws/feed/news/endocrinology", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True},
     {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True},
-    {"url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml", "source_override": "FDA (US) Press", "priority": 10, "needs_translation": True}, # FDA 链接可能仍会失败
+    {"url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml", "source_override": "FDA (US) Press", "priority": 10, "needs_translation": True}, # FDA 链接可能因服务器阻止而失败
 ]
 
 # --- (1b) 配置爬虫源 ---
 SCRAPED_SOURCES_CONFIG = [
-    {"name": "Breakthrough T1D News", "fetch_function": "fetch_breakthrought1d_articles", "source_override": "Breakthrough T1D", "priority": 8},
-    {"name": "DZD News (2025)", "fetch_function": "fetch_dzd_articles", "source_override": "DZD News", "priority": 9},
+    {"name": "Breakthrough T1D News", "fetch_function": "fetch_breakthrought1d_articles", "source_override": "Breakthrough T1D", "priority": 8}, # 爬虫可能需要更新选择器
+    {"name": "DZD News (2025)", "fetch_function": "fetch_dzd_articles", "source_override": "DZD News", "priority": 9}, # 爬虫可能需要更新选择器和年份
     {"name": "PubMed API Search", "fetch_function": "fetch_pubmed_articles", "source_override": "PubMed", "priority": 12},
-    {"name": "IDF News", "fetch_function": "fetch_idf_articles", "source_override": "IDF News", "priority": 9},
+    {"name": "IDF News", "fetch_function": "fetch_idf_articles", "source_override": "IDF News", "priority": 9}, # 爬虫可能需要更新选择器
 ]
 
 GOOGLE_NEWS_PRIORITY = 1
@@ -69,34 +69,24 @@ def parse_date_flexible(date_str):
         return dt_obj.timetuple()
     except Exception as e:
         # print(f"      使用 dateutil 解析日期失败: {date_str} - {e}") # 可以取消注释以调试日期解析
-        # 可以添加更多特定格式的尝试，如果 dateutil 失败的话
-        # try:
-        #     dt_obj = datetime.datetime.strptime(date_str, "%Y-%m-%d")
-        #     return dt_obj.timetuple()
-        # except ValueError:
-        #     pass
         return None # 如果所有尝试都失败
 
 # --- 帮助函数：判断日期是否在最近一个月内 (使用 time.struct_time) ---
+# 这个函数现在不再用于过滤，但保留以备将来可能需要
 def is_within_last_month(time_struct, today_date_obj):
     """检查 time.struct_time 对象是否在最近30天内"""
     if not time_struct:
-        # print("      日期结构不存在，无法判断是否在最近一月内。") # 可以取消注释以调试
         return False
     try:
-        # 确保 time_struct 至少包含年、月、日信息
         if not all(hasattr(time_struct, attr) for attr in ['tm_year', 'tm_mon', 'tm_mday']):
              print(f"      日期结构不完整: {time_struct}，无法判断是否在最近一月内。")
-             return False # 如果缺少必要属性
+             return False
 
         article_date = datetime.date(time_struct.tm_year, time_struct.tm_mon, time_struct.tm_mday)
         thirty_days_ago = today_date_obj - datetime.timedelta(days=30)
         is_recent = thirty_days_ago <= article_date <= today_date_obj
-        # if not is_recent:
-        #      print(f"      文章日期 {article_date} 不在最近30天内。") # 可以取消注释以调试
         return is_recent
     except ValueError as ve:
-        # 处理无效日期，例如 2 月 30 日
         print(f"      解析日期时发生值错误: {time_struct} - {ve}")
         return False
     except Exception as e:
@@ -117,13 +107,11 @@ def translate_text_with_llm(text, target_lang='Chinese'):
         print("      错误: 讯飞星火 APIPassword 未配置，无法进行 LLM 翻译。")
         return text
     if llm_call_count >= MAX_LLM_CALLS:
-        # print(f"      警告: 已达到 LLM 调用次数上限 ({MAX_LLM_CALLS})，跳过翻译。") # 减少冗余打印
         return text # 返回原文
 
     max_input_length = 500
     text_to_translate = text[:max_input_length]
     prompt = f"Please translate the following text to {target_lang}. Only return the translated text, without any introduction or explanation.\n\nText to translate:\n{text_to_translate}"
-    # print(f"      正在调用讯飞星火 HTTP API 翻译: {text_to_translate[:30]}...") # 减少冗余打印
     llm_call_count += 1
 
     try:
@@ -144,11 +132,9 @@ def translate_text_with_llm(text, target_lang='Chinese'):
             return text
         
         cleaned_output = llm_output.strip().strip('"').strip("'")
-        if cleaned_output and cleaned_output.lower() != text_to_translate.lower(): # 确保翻译结果非空且与原文不同
-            # print(f"      翻译成功: {text_to_translate[:30]}... -> {cleaned_output[:30]}...") # 减少冗余打印
+        if cleaned_output and cleaned_output.lower() != text_to_translate.lower():
             return cleaned_output
         else:
-            # print(f"      警告: 讯飞星火 API 翻译返回为空或与原文相同。") # 减少冗余打印
             return text # 返回原文
     except requests.exceptions.RequestException as req_e:
         print(f"      调用讯飞星火 API 翻译时发生网络或HTTP错误: {req_e}")
@@ -166,21 +152,18 @@ def fetch_articles_from_rss(rss_url, source_name_override=None):
     print(f"    正在从 RSS 源获取: {rss_url} ({source_name_override or '未知源'})")
     articles = []
     try:
-        # 使用更通用的 User-Agent
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36'}
-        response = requests.get(rss_url, headers=headers, timeout=25, allow_redirects=True) # 增加超时时间
+        response = requests.get(rss_url, headers=headers, timeout=25, allow_redirects=True)
 
-        # 检查是否被重定向到错误或验证页面
         if response.url != rss_url and ("apology" in response.url or "abuse" in response.url or "error" in response.url):
             print(f"      请求被重定向到疑似错误/验证页面: {response.url}")
-            # 尝试读取内容判断是否真的失败
             if response.status_code >= 400:
                  print(f"      重定向后页面状态码为 {response.status_code}，判定为失败。")
-                 response.raise_for_status() # 抛出 HTTPError
+                 response.raise_for_status()
             else:
                  print(f"      重定向后页面状态码为 {response.status_code}，尝试继续解析。")
         else:
-             response.raise_for_status() # 检查原始请求的状态码
+             response.raise_for_status()
 
         feed = feedparser.parse(response.content)
         if feed.bozo:
@@ -194,17 +177,11 @@ def fetch_articles_from_rss(rss_url, source_name_override=None):
             title = entry.get("title", "无标题")
             link = entry.get("link", f"javascript:void(0);_{html.escape(title)}")
 
-            # 尝试获取发布日期 (feedparser 会尝试解析多种格式)
             published_time_struct = entry.get("published_parsed") or entry.get("updated_parsed")
-            # 如果 feedparser 没解析出来，尝试从其他字段提取并用 dateutil 解析
             if not published_time_struct:
-                date_str = entry.get("published") or entry.get("updated") or entry.get("dc_date") # 尝试更多可能的日期字段
+                date_str = entry.get("published") or entry.get("updated") or entry.get("dc_date")
                 if date_str:
                     published_time_struct = parse_date_flexible(date_str)
-                    # if published_time_struct:
-                    #      print(f"      使用 dateutil 成功解析日期: {date_str}") # 减少冗余打印
-                    # else:
-                    #      print(f"      警告: 未能解析日期字符串: {date_str} for '{title[:30]}...'") # 减少冗余打印
 
             summary_html = entry.get("summary", entry.get("description", "暂无摘要"))
             snippet = clean_html(summary_html)
@@ -212,19 +189,18 @@ def fetch_articles_from_rss(rss_url, source_name_override=None):
             if not actual_source_name:
                 source_info = entry.get("source")
                 actual_source_name = source_info.get("title") if source_info else "未知来源"
-                # Google News 特殊处理 (可能需要调整)
                 if "news.google.com" in rss_url and not source_name_override:
                     if ' - ' in title:
                         parts = title.rsplit(' - ', 1)
-                        if len(parts) == 2 and parts[1]: # 确保分割成功且第二部分非空
+                        if len(parts) == 2 and parts[1]:
                              actual_source_name = parts[1]
-                             title = parts[0] # 从标题中移除来源
+                             title = parts[0]
             articles.append({
-                "title": title.strip(), # 清理标题两端空格
+                "title": title.strip(),
                 "url": link,
                 "snippet": snippet,
                 "source": actual_source_name,
-                "time_struct": published_time_struct # 直接存储 time.struct_time 对象
+                "time_struct": published_time_struct
             })
     except requests.exceptions.Timeout: print(f"      获取 RSS 源时发生超时错误: {rss_url}")
     except requests.exceptions.SSLError as ssl_e: print(f"      获取 RSS 源时发生 SSL 错误: {ssl_e} (URL: {rss_url})")
@@ -243,23 +219,20 @@ def fetch_breakthrought1d_articles():
         response = requests.get(BASE_URL, headers=headers, timeout=20)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
-        # *** 更新的选择器 (需要根据实际网站结构验证和调整) ***
-        for article_el in soup.select("article.post, div.news-item"): # 尝试常见的文章容器选择器
-            a_tag = article_el.select_one("h2 a, h3 a, .entry-title a, .news-title a") # 尝试常见的标题链接选择器
+        for article_el in soup.select("article.post, div.news-item"):
+            a_tag = article_el.select_one("h2 a, h3 a, .entry-title a, .news-title a")
             if not a_tag: continue
             title_en = a_tag.get_text(strip=True)
             link = urljoin(BASE_URL, a_tag.get("href"))
-            summary_tag = article_el.select_one("div.entry-summary p, div.post-excerpt p, .news-summary p") # 尝试常见的摘要选择器
+            summary_tag = article_el.select_one("div.entry-summary p, div.post-excerpt p, .news-summary p")
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
 
             time_struct = None
-            date_tag = article_el.select_one("time.published, span.posted-on time, .post-date, .news-date") # 尝试常见的日期选择器
+            date_tag = article_el.select_one("time.published, span.posted-on time, .post-date, .news-date")
             if date_tag:
                 date_str = date_tag.get_text(strip=True) or date_tag.get('datetime')
                 if date_str:
-                    time_struct = parse_date_flexible(date_str) # 使用灵活的日期解析
-
-            # if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。") # 减少冗余打印
+                    time_struct = parse_date_flexible(date_str)
 
             articles.append({
                 "title": title_en, "url": link, "snippet": summary_en,
@@ -270,7 +243,7 @@ def fetch_breakthrought1d_articles():
     return articles
 
 def fetch_dzd_articles():
-    BASE_URL = "https://www.dzd-ev.de/en/press/press-releases/press-releases-2025/index.html" # 注意年份可能需要更新
+    BASE_URL = "https://www.dzd-ev.de/en/press/press-releases/press-releases-2025/index.html"
     print(f"    正在爬取: {BASE_URL}")
     articles = []
     try:
@@ -279,8 +252,7 @@ def fetch_dzd_articles():
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        # *** 更新的选择器 (需要根据实际网站结构验证和调整) ***
-        for item in soup.select("div.news-list-item, div.teaser"): # 尝试更新的选择器
+        for item in soup.select("div.news-list-item, div.teaser"):
             title_tag = item.select_one("h3 a, h2 a, .news-title a")
             if not title_tag: continue
             title_en = title_tag.get_text(strip=True)
@@ -290,12 +262,10 @@ def fetch_dzd_articles():
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
 
             time_struct = None
-            date_span = item.select_one("span.date, div.date, .news-date") # 尝试更新的日期选择器
+            date_span = item.select_one("span.date, div.date, .news-date")
             if date_span:
                 date_str = date_span.get_text(strip=True)
-                time_struct = parse_date_flexible(date_str) # 使用灵活的日期解析
-
-            # if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。") # 减少冗余打印
+                time_struct = parse_date_flexible(date_str)
 
             articles.append({
                 "title": title_en, "url": link, "snippet": summary_en,
@@ -340,11 +310,8 @@ def fetch_pubmed_articles():
             pubdate_str = docsum.get("PubDate", "")
             time_struct = None
             if pubdate_str:
-                time_struct = parse_date_flexible(pubdate_str) # 使用灵活的日期解析
-                # if not time_struct:
-                #     print(f"      警告: 未能解析 PubMed 日期字符串: {pubdate_str} for PMID {pmid}") # 减少冗余打印
+                time_struct = parse_date_flexible(pubdate_str)
 
-            # 即使日期解析失败，也添加文章，日期过滤在主循环中进行
             articles.append({
                 "title": title_en, "url": link, "snippet": snippet_en,
                 "source": "PubMed", "time_struct": time_struct,
@@ -364,8 +331,7 @@ def fetch_idf_articles():
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # *** 更新的选择器 (需要根据实际网站结构验证和调整) ***
-        for item in soup.select("article.news-item, div.news-item, li.news-list-item, .card"): # 尝试更多选择器
+        for item in soup.select("article.news-item, div.news-item, li.news-list-item, .card"):
             title_tag = item.select_one("h3 a, h2 a, .title a, .news-title a, .card-title a")
             if not title_tag: continue
             
@@ -376,13 +342,11 @@ def fetch_idf_articles():
             summary_en = summary_tag.get_text(strip=True) if summary_tag else ""
 
             time_struct = None
-            date_tag = item.select_one("time, .date, .post-date, .news-date, .card-date") # 尝试更多日期选择器
+            date_tag = item.select_one("time, .date, .post-date, .news-date, .card-date")
             if date_tag:
                 date_str = date_tag.get_text(strip=True) or date_tag.get('datetime')
                 if date_str:
-                     time_struct = parse_date_flexible(date_str) # 使用灵活的日期解析
-
-            # if not time_struct: print(f"      警告: 未能从 {link} 提取发布日期。") # 减少冗余打印
+                     time_struct = parse_date_flexible(date_str)
             
             articles.append({
                 "title": title_en, "url": link, "snippet": summary_en,
@@ -395,11 +359,7 @@ def fetch_idf_articles():
 
 SCRAPER_FUNCTIONS_MAP = {
     "fetch_breakthrought1d_articles": fetch_breakthrought1d_articles,
-    # "fetch_myglu_articles": fetch_myglu_articles, # 注释掉的保持不变
     "fetch_dzd_articles": fetch_dzd_articles,
-    # "fetch_adces_articles": fetch_adces_articles, # 注释掉的保持不变
-    # "fetch_panther_articles": fetch_panther_articles, # 注释掉的保持不变
-    # "fetch_nmpa_articles": fetch_nmpa_articles, # 注释掉的保持不变
     "fetch_pubmed_articles": fetch_pubmed_articles,
     "fetch_idf_articles": fetch_idf_articles,
 }
@@ -412,7 +372,6 @@ def categorize_article_with_llm(article_obj):
         print("      错误: 讯飞星火 APIPassword 未配置，无法进行 LLM 分类。将归入'综合资讯'。")
         return "综合资讯"
     if llm_call_count >= MAX_LLM_CALLS:
-        # print(f"      警告: 已达到 LLM 调用次数上限 ({MAX_LLM_CALLS})，跳过分类。") # 减少冗余打印
         return "综合资讯"
 
     title = article_obj.get("title", "")
@@ -428,7 +387,6 @@ def categorize_article_with_llm(article_obj):
 
 最合适的分类名称是："""
 
-    # print(f"      正在调用讯飞星火 HTTP API 对 '{title[:30]}...' 进行分类...") # 减少冗余打印
     llm_call_count += 1
 
     try:
@@ -454,11 +412,8 @@ def categorize_article_with_llm(article_obj):
             print(f"      警告: 未知的讯飞星火 API 分类响应结构: {response_data}")
             return "综合资讯"
 
-        # print(f"      讯飞星火 API 返回: '{llm_output}'") # 减少冗余打印
-
         cleaned_output = llm_output.strip().strip('"').strip("'").replace("：","").replace(":","")
         if cleaned_output in VALID_CATEGORY_NAMES:
-            # print(f"      文章 '{title[:30]}...' 成功分类到 '{cleaned_output}'") # 减少冗余打印
             return cleaned_output
         else:
             for valid_cat in VALID_CATEGORY_NAMES:
@@ -665,7 +620,7 @@ if __name__ == "__main__":
         raw_articles_from_feed = fetch_articles_from_rss(feed_info["url"], feed_info["source_override"])
         
         processed_in_feed = 0
-        skipped_due_date = 0
+        # skipped_due_date = 0 # 不再需要这个计数器
         added_to_candidates = 0
 
         for article_data in raw_articles_from_feed:
@@ -675,57 +630,52 @@ if __name__ == "__main__":
             snippet_to_process = article_data["snippet"]
             time_struct = article_data["time_struct"] # 获取 time_struct
 
-            # 仅在需要翻译且 LLM 调用次数未达上限时进行翻译
             if needs_translation_feed and llm_call_count < MAX_LLM_CALLS:
                 original_title_for_norm = title_to_process
                 translated_title = translate_text_with_llm(title_to_process)
                 if translated_title != title_to_process:
                     title_to_process = translated_title
-                # else: print(f"      翻译标题失败或返回原文: {title_to_process[:30]}...") # 减少冗余
-
+                
                 translated_snippet = translate_text_with_llm(snippet_to_process)
                 if translated_snippet != snippet_to_process:
                      snippet_to_process = translated_snippet
-                # else: print(f"      翻译摘要失败或返回原文: {snippet_to_process[:30]}...") # 减少冗余
-                # 只有在成功调用翻译API后才暂停
-                if llm_call_count % 2 == 0: # 每翻译两项（标题和摘要）后暂停一次
+                
+                if llm_call_count % 2 == 0:
                     time.sleep(1.1)
 
-            # *关键改动*: 检查日期是否有效且在最近一个月内
-            if time_struct and is_within_last_month(time_struct, today):
-                normalized_title_key = normalize_title(article_data["title"])
-                
-                time_display_str = "未知时间"
+            # *** 移除日期过滤 ***
+            # if time_struct and is_within_last_month(time_struct, today): # <- 这行被移除
+            
+            # 只要文章没见过，就处理并尝试加入候选池
+            normalized_title_key = normalize_title(article_data["title"])
+            
+            time_display_str = "未知时间"
+            if time_struct: # 仅在 time_struct 有效时尝试格式化
                 try:
-                    # 使用解析出的 time_struct 来格式化日期
                     time_display_str = time.strftime("%Y-%m-%d", time_struct)
                 except Exception:
-                    pass
-                
-                article_obj_for_storage = {
-                    "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
-                    "source": article_data["source"], "time_display_str": time_display_str, 
-                    "time_struct": time_struct, # 存储解析后的 time_struct
-                    "source_priority": current_priority, "source_type": "authoritative_rss"
+                    pass # 保持 "未知时间"
+            
+            article_obj_for_storage = {
+                "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
+                "source": article_data["source"], "time_display_str": time_display_str, 
+                "time_struct": time_struct, # 存储解析后的 time_struct，用于排序
+                "source_priority": current_priority, "source_type": "authoritative_rss"
+            }
+            
+            if normalized_title_key not in unique_articles_candidates or \
+               current_priority > unique_articles_candidates[normalized_title_key]["priority"]:
+                unique_articles_candidates[normalized_title_key] = {
+                    "article_obj": article_obj_for_storage, "priority": current_priority,
+                    "url": article_data["url"]
                 }
-                
-                if normalized_title_key not in unique_articles_candidates or \
-                   current_priority > unique_articles_candidates[normalized_title_key]["priority"]:
-                    unique_articles_candidates[normalized_title_key] = {
-                        "article_obj": article_obj_for_storage, "priority": current_priority,
-                        "url": article_data["url"]
-                    }
-                    globally_seen_urls.add(article_data["url"])
-                    added_to_candidates += 1
-            elif not time_struct:
-                 # print(f"      跳过文章（无有效日期）: {article_data['title'][:30]}...") # 减少冗余
-                 skipped_due_date += 1
-            else: # 日期有效但不在范围内
-                 # print(f"      跳过文章（日期过旧）: {article_data['title'][:30]}...") # 减少冗余
-                 skipped_due_date += 1
+                globally_seen_urls.add(article_data["url"])
+                added_to_candidates += 1
+            # else: # 不需要 else 分支了，因为日期过滤已移除
+            #     skipped_due_date += 1
             processed_in_feed += 1
 
-        print(f"    来自 {feed_info['source_override']} 处理了 {processed_in_feed} 条, 新增 {added_to_candidates} 条到候选池 (因日期跳过 {skipped_due_date} 条)。")
+        print(f"    来自 {feed_info['source_override']} 处理了 {processed_in_feed} 条, 新增 {added_to_candidates} 条到候选池。") # 更新日志信息
         time.sleep(1)
 
     # --- 步骤二：从爬虫源获取新闻 ---
@@ -740,7 +690,7 @@ if __name__ == "__main__":
         current_priority = scraper_info.get("priority", 3)
         raw_articles_from_scraper = fetch_function()
         processed_in_scraper = 0
-        skipped_due_date_scraper = 0
+        # skipped_due_date_scraper = 0 # 不再需要
         added_to_candidates_scraper = 0
 
         for article_data in raw_articles_from_scraper: 
@@ -749,53 +699,51 @@ if __name__ == "__main__":
             title_to_process = article_data["title"]
             snippet_to_process = article_data["snippet"]
             needs_translation_scraper = article_data.get("needs_translation", False) 
-            time_struct = article_data.get("time_struct") # 获取 time_struct
+            time_struct = article_data.get("time_struct")
 
             if needs_translation_scraper and llm_call_count < MAX_LLM_CALLS:
                 original_title_for_norm = title_to_process
                 translated_title = translate_text_with_llm(title_to_process)
                 if translated_title != title_to_process:
                     title_to_process = translated_title
-                # else: print(f"      翻译标题失败或返回原文: {title_to_process[:30]}...")
 
                 translated_snippet = translate_text_with_llm(snippet_to_process)
                 if translated_snippet != snippet_to_process:
                     snippet_to_process = translated_snippet
-                # else: print(f"      翻译摘要失败或返回原文: {snippet_to_process[:30]}...")
+                
                 if llm_call_count % 2 == 0:
                      time.sleep(1.1)
             
-            if time_struct and is_within_last_month(time_struct, today):
-                normalized_title_key = normalize_title(article_data["title"])
-                
-                time_display_str = "未知时间"
+            # *** 移除日期过滤 ***
+            # if time_struct and is_within_last_month(time_struct, today): # <- 这行被移除
+            
+            normalized_title_key = normalize_title(article_data["title"])
+            
+            time_display_str = "未知时间"
+            if time_struct:
                 try:
                     time_display_str = time.strftime("%Y-%m-%d", time_struct)
                 except Exception: pass
-                
-                article_obj_for_storage = {
-                    "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
-                    "source": scraper_info["source_override"], "time_display_str": time_display_str, 
-                    "time_struct": time_struct, 
-                    "source_priority": current_priority, "source_type": "scraper"
+            
+            article_obj_for_storage = {
+                "title": title_to_process, "url": article_data["url"], "snippet": snippet_to_process, 
+                "source": scraper_info["source_override"], "time_display_str": time_display_str, 
+                "time_struct": time_struct, 
+                "source_priority": current_priority, "source_type": "scraper"
+            }
+            if normalized_title_key not in unique_articles_candidates or \
+               current_priority > unique_articles_candidates[normalized_title_key]["priority"]:
+                unique_articles_candidates[normalized_title_key] = {
+                    "article_obj": article_obj_for_storage, "priority": current_priority,
+                    "url": article_data["url"]
                 }
-                if normalized_title_key not in unique_articles_candidates or \
-                   current_priority > unique_articles_candidates[normalized_title_key]["priority"]:
-                    unique_articles_candidates[normalized_title_key] = {
-                        "article_obj": article_obj_for_storage, "priority": current_priority,
-                        "url": article_data["url"]
-                    }
-                    globally_seen_urls.add(article_data["url"])
-                    added_to_candidates_scraper += 1
-            elif not time_struct:
-                 # print(f"      跳过文章（无有效日期）: {article_data['title'][:30]}...") # 减少冗余
-                 skipped_due_date_scraper += 1
-            else:
-                 # print(f"      跳过文章（日期过旧）: {article_data['title'][:30]}...") # 减少冗余
-                 skipped_due_date_scraper += 1
+                globally_seen_urls.add(article_data["url"])
+                added_to_candidates_scraper += 1
+            # else: # 不需要 else 分支了
+            #     skipped_due_date_scraper += 1
             processed_in_scraper += 1
 
-        print(f"    来自 {scraper_info['source_override']} 处理了 {processed_in_scraper} 条, 新增 {added_to_candidates_scraper} 条到候选池 (因日期跳过 {skipped_due_date_scraper} 条)。")
+        print(f"    来自 {scraper_info['source_override']} 处理了 {processed_in_scraper} 条, 新增 {added_to_candidates_scraper} 条到候选池。") # 更新日志信息
         time.sleep(1)
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
@@ -806,48 +754,48 @@ if __name__ == "__main__":
     
     raw_articles_from_google = fetch_articles_from_rss(google_news_rss_url, source_name_override=None)
     processed_in_google = 0
-    skipped_due_date_google = 0
+    # skipped_due_date_google = 0 # 不需要
     added_to_candidates_google = 0
 
     for article_data in raw_articles_from_google:
         if article_data["url"] in globally_seen_urls: continue
             
-        time_struct = article_data["time_struct"] # 获取 time_struct
+        time_struct = article_data["time_struct"]
 
-        if time_struct and is_within_last_month(time_struct, today):
-            normalized_title_key = normalize_title(article_data["title"])
-            
-            time_display_str = "未知时间"
+        # *** 移除日期过滤 ***
+        # if time_struct and is_within_last_month(time_struct, today): # <- 这行被移除
+        
+        normalized_title_key = normalize_title(article_data["title"])
+        
+        time_display_str = "未知时间"
+        if time_struct:
             try:
                 time_display_str = time.strftime("%Y-%m-%d", time_struct)
             except Exception: pass
-            
-            title_to_process_g = article_data["title"]
-            snippet_to_process_g = article_data["snippet"]
-            # Google News 通常不需要翻译 (hl=zh-CN)，如果需要，在此处添加翻译逻辑
+        
+        title_to_process_g = article_data["title"]
+        snippet_to_process_g = article_data["snippet"]
 
-            article_obj_for_storage = {
-                "title": title_to_process_g, "url": article_data["url"], "snippet": snippet_to_process_g, 
-                "source": article_data["source"], "time_display_str": time_display_str, 
-                "time_struct": time_struct, 
-                "source_priority": GOOGLE_NEWS_PRIORITY, "source_type": "google_news"
+        article_obj_for_storage = {
+            "title": title_to_process_g, "url": article_data["url"], "snippet": snippet_to_process_g, 
+            "source": article_data["source"], "time_display_str": time_display_str, 
+            "time_struct": time_struct, 
+            "source_priority": GOOGLE_NEWS_PRIORITY, "source_type": "google_news"
+        }
+
+        if normalized_title_key not in unique_articles_candidates or \
+           GOOGLE_NEWS_PRIORITY > unique_articles_candidates[normalized_title_key]["priority"]:
+            unique_articles_candidates[normalized_title_key] = {
+                "article_obj": article_obj_for_storage, "priority": GOOGLE_NEWS_PRIORITY,
+                "url": article_data["url"]
             }
-
-            if normalized_title_key not in unique_articles_candidates or \
-               GOOGLE_NEWS_PRIORITY > unique_articles_candidates[normalized_title_key]["priority"]:
-                unique_articles_candidates[normalized_title_key] = {
-                    "article_obj": article_obj_for_storage, "priority": GOOGLE_NEWS_PRIORITY,
-                    "url": article_data["url"]
-                }
-                globally_seen_urls.add(article_data["url"])
-                added_to_candidates_google += 1
-        elif not time_struct:
-             skipped_due_date_google += 1
-        else:
-             skipped_due_date_google += 1
+            globally_seen_urls.add(article_data["url"])
+            added_to_candidates_google += 1
+        # else: # 不需要 else
+        #     skipped_due_date_google += 1
         processed_in_google += 1
 
-    print(f"    来自 Google News 处理了 {processed_in_google} 条, 新增 {added_to_candidates_google} 条到候选池 (因日期或重复跳过 {processed_in_google - added_to_candidates_google} 条)。")
+    print(f"    来自 Google News 处理了 {processed_in_google} 条, 新增 {added_to_candidates_google} 条到候选池 (因重复跳过 {processed_in_google - added_to_candidates_google} 条)。") # 更新日志
     time.sleep(1)
 
     # --- 步骤四：使用 LLM 动态分类所有候选文章 ---
@@ -859,7 +807,7 @@ if __name__ == "__main__":
         print("警告: 讯飞星火 APIPassword 未配置，将跳过 LLM 分类，所有文章归入'综合资讯'。")
     
     categorized_count = 0
-    llm_limit_hit_printed = False # 标记是否已打印 LLM 上限警告
+    llm_limit_hit_printed = False
 
     for candidate_key, candidate_info in unique_articles_candidates.items():
         article_to_categorize = candidate_info["article_obj"]
@@ -874,9 +822,9 @@ if __name__ == "__main__":
                 best_category = "综合资讯"
         elif llm_call_count >= MAX_LLM_CALLS and spark_categorization_ready and not llm_limit_hit_printed:
             print(f"    已达到 LLM 调用次数上限 ({MAX_LLM_CALLS})，剩余文章将归入'综合资讯'。")
-            llm_limit_hit_printed = True # 只打印一次
+            llm_limit_hit_printed = True
             best_category = "综合资讯"
-        elif not spark_categorization_ready: # 如果 API 未配置，直接归入综合
+        elif not spark_categorization_ready:
              best_category = "综合资讯"
         
         if best_category not in all_articles_by_site_category_temp:
@@ -885,8 +833,6 @@ if __name__ == "__main__":
             
         all_articles_by_site_category_temp[best_category].append(article_to_categorize)
         categorized_count += 1
-        # if categorized_count % 10 == 0: # 减少打印频率
-        #     print(f"    已分类 {categorized_count}/{len(unique_articles_candidates)} 文章...")
 
     print(f"--- 分类完成，共处理 {categorized_count} 篇文章 ---")
 
@@ -896,12 +842,14 @@ if __name__ == "__main__":
     all_articles_by_site_category_final_sorted = {}
     total_final_articles = 0
     for category_name, articles_list in all_articles_by_site_category_temp.items():
+        # 确保排序时优先处理有日期的文章
         articles_list.sort(key=lambda x: (
             SOURCE_TYPE_ORDER.get(x.get("source_type", "unknown"), 99),
-            # 使用 time.mktime 处理 time_struct，如果不存在则视为最早
-            -(time.mktime(x["time_struct"]) if x.get("time_struct") else -float('inf')),
-            -x.get("source_priority", 0)
-        ), reverse=False) # 确保 sort 是升序（因为 key 返回的是元组，默认升序比较）
+            # 对日期进行处理：有日期的排在前面，日期越新越靠前；无日期的排在后面
+            0 if x.get("time_struct") else 1, # 有日期的 key[1] 为 0, 无日期的为 1
+            -(time.mktime(x["time_struct"]) if x.get("time_struct") else -float('inf')), # 日期越新，负值越小
+            -x.get("source_priority", 0) # 优先级越高，负值越小
+        ))
         
         all_articles_by_site_category_final_sorted[category_name] = articles_list[:MAX_ARTICLES_PER_CATEGORY]
         count_in_category = len(all_articles_by_site_category_final_sorted[category_name])
@@ -927,3 +875,4 @@ if __name__ == "__main__":
 
     print(f"总共调用 LLM API {llm_call_count} 次。")
     print("资讯网页生成完毕。")
+
