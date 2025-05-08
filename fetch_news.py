@@ -16,34 +16,38 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from deep_translator import GoogleTranslator
 try:
-    from Bio import Entrez
+    from Bio import Entrez # For PubMed API
 except ImportError:
     print("错误：未找到 Biopython 库。请通过 'pip install biopython' 安装。")
-    Entrez = None
+    Entrez = None # Set Entrez to None if import fails
 
 # --- (0) 从环境变量读取讯飞星火 API Keys ---
-SPARK_APPID = os.getenv("SPARK_APPID")
-SPARK_API_SECRET = os.getenv("SPARK_API_SECRET")
-SPARK_API_KEY = os.getenv("SPARK_API_KEY")
+# 不再需要 SPARK_APPID, SPARK_API_SECRET, SPARK_API_KEY
+SPARK_API_PASSWORD = os.getenv("SPARK_API_PASSWORD") # 读取 APIPassword
 # Spark Lite HTTP Endpoint
 SPARK_LITE_HTTP_URL = "https://spark-api-open.xf-yun.com/v1/chat/completions"
 
 # --- (1) 配置权威 RSS 源 ---
-# (与 diabetes_news_fetch_all_sources_v2 版本相同)
+# 添加 priority 和 needs_translation
 AUTHORITATIVE_RSS_FEEDS = [
-    {"url": "https://www.medscape.com/endocrinology/rss", "source_override": "Medscape Endocrinology", "priority": 10, "needs_translation": True},
-    {"url": "https://www.healio.com/sws/feed/news/endocrinology", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True},
-    {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True},
+    # Medscape: 尝试主 RSS 或其他可能的链接，如果 endocrinology/rss 持续404
+    # {"url": "http://rss.medscape.com/medscaperss/home.xml", "source_override": "Medscape", "priority": 10, "needs_translation": True},
+    {"url": "https://www.medscape.com/cx/rss/professional.xml", "source_override": "Medscape Professional", "priority": 10, "needs_translation": True}, # 另一个可能的链接
+    {"url": "https://www.healio.com/sws/feed/news/endocrinology", "source_override": "Healio Endocrinology", "priority": 9, "needs_translation": True}, # 这个上次成功了
+    {"url": "https://www.diabettech.com/feed/", "source_override": "Diabettech", "priority": 8, "needs_translation": True}, # 这个上次成功了
     # {"url": "https://thesavvydiabetic.com/feed/", "source_override": "The Savvy Diabetic", "priority": 7, "needs_translation": True}, # 403
     # {"url": "https://forum.diabetes.org.uk/boards/forums/-/index.rss", "source_override": "Diabetes UK 论坛", "priority": 6, "needs_translation": True}, # Removed by user
-    {"url": "https://www.gov.uk/government/latest.atom?organisations%5B%5D=medicines-and-healthcare-products-regulatory-agency", "source_override": "MHRA (UK)", "priority": 9, "needs_translation": True},
-    {"url": "https://www.fda.gov/news-events/fda-newsroom/press-announcements/rss.xml", "source_override": "FDA (US) Press", "priority": 10, "needs_translation": True},
+    # MHRA: Atom feed 链接可能需要特定库或不同处理，暂时注释掉，或寻找标准 RSS
+    # {"url": "https://www.gov.uk/government/latest.atom?organisations%5B%5D=medicines-and-healthcare-products-regulatory-agency", "source_override": "MHRA (UK)", "priority": 9, "needs_translation": True},
+    # FDA: 尝试另一个可能的 RSS 链接
+    {"url": "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/press-releases/rss.xml", "source_override": "FDA (US) Press", "priority": 10, "needs_translation": True},
+    # --- 请您替换或添加以下占位符 ---
     # { "url": "YOUR_PUBMED_RSS_URL", "source_override": "PubMed (RSS Search)", "priority": 12, "needs_translation": True },
     # { "url": "YOUR_ADA_JOURNAL_RSS_URL", "source_override": "Diabetes Care (ADA)", "priority": 11, "needs_translation": True },
 ]
 
 # --- (1b) 配置爬虫源 ---
-# (与 diabetes_news_fetch_all_sources_v2 版本相同)
+# 保持之前失败的爬虫为注释状态
 SCRAPED_SOURCES_CONFIG = [
     {"name": "Breakthrough T1D News", "fetch_function": "fetch_breakthrought1d_articles", "source_override": "Breakthrough T1D", "priority": 8},
     # {"name": "MyGlu Articles", "fetch_function": "fetch_myglu_articles", "source_override": "MyGlu", "priority": 7}, # 404
@@ -60,25 +64,17 @@ SOURCE_TYPE_ORDER = {'authoritative_rss': 0, 'scraper': 1, 'google_news': 2, 'un
 
 # --- (2) 配置网站展示的分类 ---
 CATEGORIES_CONFIG = {
-    "最新研究": {"emoji": "🔬"},
-    "治疗进展": {"emoji": "💊"},
-    "饮食与营养": {"emoji": "🥗"},
-    "预防与生活方式": {"emoji": "🏃‍♀️"},
-    "并发症管理": {"emoji": "🩺"},
-    "患者故事与心理支持": {"emoji": "😊"},
-    "政策/医保信息": {"emoji": "📄"},
-    "综合资讯": {"emoji": "📰"} # 保留兜底分类
+    "最新研究": {"emoji": "🔬"}, "治疗进展": {"emoji": "💊"}, "饮食与营养": {"emoji": "🥗"},
+    "预防与生活方式": {"emoji": "🏃‍♀️"}, "并发症管理": {"emoji": "🩺"}, "患者故事与心理支持": {"emoji": "😊"},
+    "政策/医保信息": {"emoji": "📄"}, "综合资讯": {"emoji": "📰"}
 }
 VALID_CATEGORY_NAMES = list(CATEGORIES_CONFIG.keys())
-if "综合资讯" in VALID_CATEGORY_NAMES:
-    VALID_CATEGORY_NAMES.remove("综合资讯")
+if "综合资讯" in VALID_CATEGORY_NAMES: VALID_CATEGORY_NAMES.remove("综合资讯")
 
 # --- 帮助函数：规范化标题 ---
 def normalize_title(title):
     if not title: return ""
-    title = title.lower()
-    title = re.sub(r'[^\w\s-]', '', title)
-    title = re.sub(r'\s+', ' ', title).strip()
+    title = title.lower(); title = re.sub(r'[^\w\s-]', '', title); title = re.sub(r'\s+', ' ', title).strip()
     return title
 
 # --- 帮助函数：判断日期是否在最近一个月内 ---
@@ -110,16 +106,19 @@ def translate_text(text, target_lang='zh-CN'):
 
 # --- (A) RSS 源获取函数 ---
 def fetch_articles_from_rss(rss_url, source_name_override=None):
-    # (与 diabetes_news_fetch_all_sources_v1 版本相同)
     print(f"    正在从 RSS 源获取: {rss_url} ({source_name_override or '未知源'})")
     articles = []
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        response = requests.get(rss_url, headers=headers, timeout=20)
+        response = requests.get(rss_url, headers=headers, timeout=20, allow_redirects=True)
+        if response.url != rss_url and "apology" in response.url:
+             print(f"      请求被重定向到错误页面: {response.url}")
+             response.raise_for_status() 
         response.raise_for_status()
         feed = feedparser.parse(response.content)
         if not feed.entries:
-            print(f"      此 RSS 源未返回任何条目: {rss_url}")
+            if feed.bozo: print(f"      警告: feedparser 解析 RSS 源时遇到问题: {feed.bozo_exception} (URL: {rss_url})")
+            else: print(f"      此 RSS 源未返回任何条目: {rss_url}")
             return []
         print(f"      从此 RSS 源原始获取到 {len(feed.entries)} 条新闻。")
         for entry in feed.entries:
@@ -175,7 +174,7 @@ def fetch_breakthrought1d_articles():
     except Exception as e: print(f"      爬取 Breakthrough T1D 时出错: {e}")
     return articles
 
-def fetch_myglu_articles(): # 已注释掉，因为之前404
+def fetch_myglu_articles(): # 已注释掉
     print("    跳过 MyGlu 爬虫 (已注释掉)")
     return []
 
@@ -206,15 +205,15 @@ def fetch_dzd_articles():
     except Exception as e: print(f"      爬取 DZD News 时出错: {e}")
     return articles
 
-def fetch_adces_articles(): # 已注释掉，因为之前404
+def fetch_adces_articles(): # 已注释掉
     print("    跳过 ADCES News 爬虫 (已注释掉)")
     return []
 
-def fetch_panther_articles(): # 已注释掉，因为之前404
+def fetch_panther_articles(): # 已注释掉
     print("    跳过 PANTHER Program 爬虫 (已注释掉)")
     return []
 
-def fetch_nmpa_articles(): # 已注释掉，因为之前412
+def fetch_nmpa_articles(): # 已注释掉
     print("    跳过 NMPA 爬虫 (已注释掉)")
     return []
 
@@ -309,48 +308,18 @@ SCRAPER_FUNCTIONS_MAP = {
     "fetch_idf_articles": fetch_idf_articles,
 }
 
-# --- (C) 使用讯飞星火 HTTP API 进行动态分类 ---
-def get_spark_authorization_url(api_key, api_secret):
-    """根据讯飞 API 文档生成认证 URL (用于 HTTP 请求头)"""
-    # 1. 获取当前 UTC 时间 (RFC1123 格式)
-    date_utc = datetime.datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
-    
-    # 2. 解析 URL
-    host = urlparse(SPARK_LITE_HTTP_URL).netloc
-    path = urlparse(SPARK_LITE_HTTP_URL).path
-    
-    # 3. 构造签名原文
-    tmp_signature_origin = f"host: {host}\ndate: {date_utc}\nPOST {path} HTTP/1.1"
-    
-    # 4. 使用 HMAC-SHA256 签名
-    signature_sha = hmac.new(api_secret.encode('utf-8'), tmp_signature_origin.encode('utf-8'), digestmod=hashlib.sha256).digest()
-    signature_sha_base64 = base64.b64encode(signature_sha).decode('utf-8')
-    
-    # 5. 构造 authorization 字符串
-    authorization_origin = f'api_key="{api_key}", algorithm="hmac-sha256", headers="host date request-line", signature="{signature_sha_base64}"'
-    authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode('utf-8')
-    
-    # 6. 返回包含认证信息的请求头字典
-    auth_headers = {
-        "Authorization": authorization,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Host": host,
-        "Date": date_utc
-    }
-    return auth_headers
-
+# --- (C) 使用讯飞星火 HTTP API 进行动态分类 (修正认证方式) ---
 def categorize_article_with_llm(article_obj):
     """使用讯飞星火 HTTP API 对文章进行分类"""
-    if not all([SPARK_APPID, SPARK_API_KEY, SPARK_API_SECRET]):
-        print("      错误: 讯飞星火 API 密钥未完全配置，无法进行 LLM 分类。将归入'综合资讯'。")
+    if not SPARK_API_PASSWORD:
+        print("      错误: 讯飞星火 APIPassword 未配置，无法进行 LLM 分类。将归入'综合资讯'。")
         return "综合资讯"
 
     title = article_obj.get("title", "")
     snippet = article_obj.get("snippet", "")
     text_to_classify = f"标题：{title}\n摘要：{snippet[:300]}"
 
-    prompt = f"""请根据以下文章内容，判断它最符合下列哪个分类？请直接返回最合适的分类名称，不要添加任何其他文字。
+    prompt = f"""请根据以下文章内容，判断它最符合下列哪个分类？请严格从列表中选择一个，并只返回分类名称，不要添加任何其他解释或文字。
 
 可选分类列表：{', '.join(VALID_CATEGORY_NAMES)}
 
@@ -362,59 +331,55 @@ def categorize_article_with_llm(article_obj):
     print(f"      正在调用讯飞星火 HTTP API 对 '{title[:30]}...' 进行分类...")
 
     try:
-        # 1. 获取认证头
-        auth_headers = get_spark_authorization_url(SPARK_API_KEY, SPARK_API_SECRET)
+        # 1. 构造请求头 (使用 Bearer Token 认证)
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {SPARK_API_PASSWORD}"
+        }
 
-        # 2. 构造请求体 (根据 Spark Lite HTTP API 文档调整)
-        # 通常需要指定模型和消息内容
+        # 2. 构造请求体
         payload = {
-            "model": "spark-lite", # 假设 Spark Lite 的模型标识符是这个
-            "messages": [{"role": "user", "content": prompt}]
-            # 可能还需要其他参数，如 temperature, max_tokens 等，可按需添加
-            # "temperature": 0.7,
-            # "max_tokens": 50
+            "model": "lite", # 指定使用 Spark Lite 模型
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.5,
+            "max_tokens": 50
         }
 
         # 3. 发送 POST 请求
-        response = requests.post(SPARK_LITE_HTTP_URL, headers=auth_headers, json=payload, timeout=30) # 增加超时
-        response.raise_for_status() # 检查 HTTP 错误
+        response = requests.post(SPARK_LITE_HTTP_URL, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
 
         # 4. 解析 JSON 响应
         response_data = response.json()
 
-        # 5. 提取模型回答 (需要根据实际返回结构调整)
-        # 假设返回结构类似 OpenAI: response_data['choices'][0]['message']['content']
-        # 或者直接是: response_data['text'] 或 response_data['output'] 等
+        # 5. 提取模型回答
         llm_output = ""
         if 'choices' in response_data and response_data['choices']:
             message = response_data['choices'][0].get('message', {})
             llm_output = message.get('content', '').strip()
-        elif 'payload' in response_data and 'choices' in response_data['payload'] and response_data['payload']['choices']: # 另一种可能的结构
-             llm_output = response_data['payload']['choices']['text'][0].strip() # 再一种可能的结构
+        elif 'payload' in response_data and 'choices' in response_data['payload'] and response_data['payload']['choices']:
+             llm_output = response_data['payload']['choices']['text'][0].strip()
         else:
-            # 如果结构未知，尝试打印整个响应以供调试
             print(f"      警告: 未知的讯飞星火 API 响应结构: {response_data}")
-            llm_output = "" # 或尝试从其他可能的键提取
+            llm_output = ""
 
         print(f"      讯飞星火 API 返回: '{llm_output}'")
 
         # 6. 验证并返回分类
-        if llm_output in VALID_CATEGORY_NAMES:
-            print(f"      文章 '{title[:30]}...' 成功分类到 '{llm_output}'")
-            return llm_output
+        cleaned_output = llm_output.strip().replace("\"", "").replace("'", "").replace("：","").replace(":","")
+        if cleaned_output in VALID_CATEGORY_NAMES:
+            print(f"      文章 '{title[:30]}...' 成功分类到 '{cleaned_output}'")
+            return cleaned_output
         else:
-            print(f"      警告: 讯飞星火 API 返回的分类 '{llm_output}' 无效或不在列表中。将归入'综合资讯'。")
+            print(f"      警告: 讯飞星火 API 返回的分类 '{cleaned_output}' (原始: '{llm_output}') 无效或不在列表中。将归入'综合资讯'。")
             return "综合资讯"
 
     except requests.exceptions.RequestException as req_e:
          print(f"      调用讯飞星火 API 时发生网络或HTTP错误: {req_e}")
-         # 可以检查 response 内容（如果存在）
          if 'response' in locals() and response is not None:
               print(f"      响应状态码: {response.status_code}")
-              try:
-                   print(f"      响应内容: {response.json()}")
-              except json.JSONDecodeError:
-                   print(f"      响应内容 (非JSON): {response.text}")
+              try: print(f"      响应内容: {response.json()}")
+              except json.JSONDecodeError: print(f"      响应内容 (非JSON): {response.text}")
          return "综合资讯"
     except Exception as e:
         print(f"      调用讯飞星火 API 时出错: {e}")
@@ -423,7 +388,6 @@ def categorize_article_with_llm(article_obj):
 # --- HTML 生成逻辑 ---
 def generate_html_content(all_news_data_sorted):
     # (此函数内容与 diabetes_news_fetch_tabs_v1 中的 generate_html_content 完全相同)
-    # ... (省略 HTML 生成代码) ...
     current_time_str = datetime.datetime.now().strftime('%Y年%m月%d日 %H:%M:%S')
     app_timezone = os.getenv('APP_TIMEZONE', 'UTC')
     if app_timezone != 'UTC':
@@ -590,7 +554,7 @@ if __name__ == "__main__":
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
     print("\n--- 正在从权威 RSS 源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     for feed_info in AUTHORITATIVE_RSS_FEEDS:
         current_priority = feed_info.get("priority", 5) 
         needs_translation = feed_info.get("needs_translation", False)
@@ -625,7 +589,7 @@ if __name__ == "__main__":
 
     # --- 步骤二：从爬虫源获取新闻 ---
     print("\n--- 正在从爬虫源获取新闻 ---")
-    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     for scraper_info in SCRAPED_SOURCES_CONFIG:
         if scraper_info["fetch_function"] not in SCRAPER_FUNCTIONS_MAP: continue
         fetch_function = SCRAPER_FUNCTIONS_MAP[scraper_info["fetch_function"]]
@@ -656,7 +620,7 @@ if __name__ == "__main__":
 
     # --- 步骤三：从 Google News RSS 获取补充新闻 ---
     print("\n--- 正在从 Google News RSS 获取补充新闻 (用于全局候选池) ---")
-    # ... (与 diabetes_news_fetch_translate_rss 版本相同) ...
+    # ... (与 diabetes_news_fetch_source_type_sort 版本相同) ...
     google_search_term = "糖尿病 新闻 OR diabetes news" 
     print(f"  使用 Google News 搜索词: {google_search_term}")
     google_news_rss_url = f"https://news.google.com/rss/search?q={html.escape(google_search_term)}&hl=zh-CN&gl=CN&ceid=CN:zh-Hans"
@@ -689,9 +653,9 @@ if __name__ == "__main__":
     print("\n--- 正在对所有候选文章进行动态分类 (使用讯飞星火 HTTP API) ---")
     all_articles_by_site_category_temp = {category_name: [] for category_name in CATEGORIES_CONFIG.keys()}
     categorized_urls = set() 
-    spark_api_ready = all([SPARK_APPID, SPARK_API_KEY, SPARK_API_SECRET])
+    spark_api_ready = bool(SPARK_API_PASSWORD) 
     if not spark_api_ready:
-        print("警告: 讯飞星火 API 密钥未完全配置在环境变量中，将跳过 LLM 分类，所有文章归入'综合资讯'。")
+        print("警告: 讯飞星火 APIPassword 未配置在环境变量中，将跳过 LLM 分类，所有文章归入'综合资讯'。")
     
     for candidate_info in unique_articles_candidates.values():
         article_to_categorize = candidate_info["article_obj"]
@@ -703,7 +667,7 @@ if __name__ == "__main__":
             try:
                 best_category = categorize_article_with_llm(article_to_categorize)
                 llm_call_count += 1
-                time.sleep(1.1) # 稍微增加 LLM API 调用间隔
+                time.sleep(1.1) 
             except Exception as llm_e:
                 print(f"    LLM 分类时发生意外错误: {llm_e}，文章将归入'综合资讯'。")
                 best_category = "综合资讯"
@@ -711,7 +675,7 @@ if __name__ == "__main__":
              print(f"    已达到 LLM 调用次数上限 ({MAX_LLM_CALLS})，剩余文章将归入'综合资讯'。")
              best_category = "综合资讯"
         elif not spark_api_ready:
-             best_category = "综合资讯" # 如果 API keys 不可用，直接放入综合
+             best_category = "综合资讯" 
 
         if best_category in all_articles_by_site_category_temp:
             all_articles_by_site_category_temp[best_category].append(article_to_categorize)
