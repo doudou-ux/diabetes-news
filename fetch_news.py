@@ -708,7 +708,7 @@ if __name__ == "__main__":
     globally_seen_urls = set() # To avoid processing the exact same URL multiple times if it appears in different feeds
     today = datetime.date.today()
     MAX_ARTICLES_PER_CATEGORY = 10 # Max articles to show per category in the final HTML
-    MAX_LLM_CALLS = int(os.getenv("MAX_LLM_CALLS", "50")) # Max LLM calls for translation/categorization, configurable via env var
+    MAX_LLM_CALLS = int(os.getenv("MAX_LLM_CALLS", "500")) # Max LLM calls for translation/categorization, configurable via env var, default to 500
     llm_call_count = 0
 
     # --- 步骤一：从权威 RSS 源获取新闻 ---
