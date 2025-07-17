@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线管理后台 - 文章收录</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>🌐 在线管理后台</h1>
+            <p>直接在线添加和管理文章</p>
+            <a href="index.html" class="back-link">← 返回主页</a>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="admin-panel">
+            <div class="admin-tips">
+                <h3>💡 在线管理说明</h3>
+                <ul>
+                    <li>文章数据直接保存在浏览器本地存储中</li>
+                    <li>添加文章后立即在主页面生效</li>
+                    <li>无需下载和上传文件</li>
+                    <li>建议定期导出数据作为备份</li>
+                </ul>
+            </div>
+            
+            <form id="onlineArticleForm" class="article-form">
+                <div class="form-group">
+                    <label for="onlineTitle">文章标题 *</label>
+                    <input type="text" id="onlineTitle" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="onlineUrl">原文链接（可选）</label>
+                    <input type="url" id="onlineUrl" placeholder="如果有原文链接可以填写">
+                </div>
+
+                <div class="form-group">
+                    <label for="onlineDescription">文章摘要</label>
+                    <textarea id="onlineDescription" rows="3" placeholder="简单描述这篇文章的内容..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="onlineContent">文章内容 (Markdown格式) *</label>
+                    <textarea id="onlineContent" rows="15" required placeholder="在这里粘贴你的markdown格式文章内容..."></textarea>
+                    <div class="content-tools">
+                        <button type="button" id="onlineCleanup" class="tool-btn">🧹 清理内容</button>
+                        <button type="button" id="onlineFixImages" class="tool-btn">🔧 修复图片</button>
+                        <button type="button" id="onlineConvert" class="tool-btn">🖼️ 转换为占位符</button>
+                    </div>
+                    <small style="color: #666;">
+                        <strong>使用说明：</strong><br>
+                        • 直接粘贴图文混合内容，系统会自动保持格式<br>
+                        • <strong>🔧 修复图片</strong>：将 [图片](链接) 格式转换为正确的 ![图片](链接) 格式<br>
+                        • <strong>🧹 清理内容</strong>：优化文本格式，移除多余空格和换行<br>
+                        • <strong>🖼️ 转换为占位符</strong>：将长base64图片转为简洁占位符<br>
+                        • 图片会保持原始格式，可以正常显示
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="onlineTags">标签</label>
+                    <input type="text" id="onlineTags" placeholder="用逗号分隔，如：技术,前端,JavaScript">
+                </div>
+
+                <div class="form-group">
+                    <label for="onlineRating">推荐指数</label>
+                    <select id="onlineRating">
+                        <option value="5">⭐⭐⭐⭐⭐ 强烈推荐</option>
+                        <option value="4">⭐⭐⭐⭐ 值得一读</option>
+                        <option value="3">⭐⭐⭐ 还不错</option>
+                        <option value="2">⭐⭐ 一般</option>
+                        <option value="1">⭐ 不推荐</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="submit-btn">立即发布文章</button>
+            </form>
+        </div>
+
+        <div class="articles-management">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2>已发布文章</h2>
+                <div>
+                    <button id="exportData" class="view-site-btn">📥 导出数据</button>
+                    <button id="importData" class="view-site-btn" style="background: #ffc107;">📤 导入数据</button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;">
+                </div>
+            </div>
+            <div id="onlineArticlesList" class="admin-articles-list">
+                <!-- 文章列表将在这里生成 -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class OnlineAdminManager {
+            constructor() {
+                this.articles = [];
+                this.init();
+            }
+
+            init() {
+                this.loadArticles();
+                this.setupEventListeners();
+                this.renderArticles();
+            }
+
+            loadArticles() {
+                const saved = localStorage.getItem('articles');
+                if (saved) {
+                    try {
+                        this.articles = JSON.parse(saved);
+                    } catch (error) {
+                        console.error('数据格式错误');
+                        this.articles = [];
+                    }
+                }
+            }
+
+            setupEventListeners() {
+                const form = document.getElementById('onlineArticleForm');
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.addArticle();
+                });
+
+                // 工具按钮
+                document.getElementById('onlineCleanup').addEventListener('click', () => {
+                    this.cleanupContent();
+                });
+
+                document.getElementById('onlineFixImages').addEventListener('click', () => {
+                    this.fixImageLinks();
+                });
+
+                document.getElementById('onlineConvert').addEventListener('click', () => {
+                    this.convertImageLinks();
+                });
+
+                // 导入导出
+                document.getElementById('exportData').addEventListener('click', () => {
+                    this.exportData();
+                });
+
+                document.getElementById('importData').addEventListener('click', () => {
+                    document.getElementById('importFile').click();
+                });
+
+                document.getElementById('importFile').addEventListener('change', (e) => {
+                    this.importData(e.target.files[0]);
+                });
+
+                // 图片粘贴处理
+                this.setupImageHandling();
+            }
+
+            setupImageHandling() {
+                const contentTextarea = document.getElementById('onlineContent');
+                
+                contentTextarea.addEventListener('paste', (e) => {
+                    console.log('粘贴事件触发');
+                    const items = e.clipboardData.items;
+                    let imageFiles = [];
+                    let hasText = false;
+                    let hasHtml = false;
+                    
+                    // 检查剪贴板内容类型
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        console.log('剪贴板项目:', item.type, item.kind);
+                        
+                        if (item.type.indexOf('image') !== -1) {
+                            const file = item.getAsFile();
+                            if (file) imageFiles.push(file);
+                        } else if (item.type === 'text/html') {
+                            hasHtml = true;
+                        } else if (item.type === 'text/plain') {
+                            hasText = true;
+                        }
+                    }
+                    
+                    // 如果有HTML格式的文本（通常包含格式），优先处理HTML
+                    if (hasHtml && !imageFiles.length) {
+                        console.log('检测到HTML格式内容，保持格式粘贴');
+                        e.preventDefault();
+                        
+                        // 获取HTML内容
+                        const htmlItem = Array.from(items).find(item => item.type === 'text/html');
+                        if (htmlItem) {
+                            htmlItem.getAsString((htmlContent) => {
+                                // 将HTML转换为Markdown
+                                const markdownContent = this.htmlToMarkdown(htmlContent);
+                                this.insertAtCursor(contentTextarea, markdownContent);
+                                this.showMessage('已保持格式粘贴内容', 'success');
+                            });
+                        }
+                    }
+                    // 如果只有图片，处理图片
+                    else if (imageFiles.length > 0 && !hasText && !hasHtml) {
+                        e.preventDefault();
+                        this.handleImageFiles(imageFiles);
+                    }
+                    // 如果有图片和文本，让文本正常粘贴，然后处理图片
+                    else if (imageFiles.length > 0 && (hasText || hasHtml)) {
+                        // 让默认粘贴行为处理文本，然后处理图片
+                        setTimeout(() => {
+                            this.handleImageFiles(imageFiles);
+                        }, 100);
+                    }
+                    // 其他情况让默认行为处理
+                });
+            }
+
+            // HTML转Markdown的简单转换器
+            htmlToMarkdown(html) {
+                console.log('原始HTML:', html.substring(0, 500));
+                
+                // 创建临时DOM元素来解析HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                
+                // 处理图片 - 更全面的图片检测
+                const images = tempDiv.querySelectorAll('img');
+                images.forEach(img => {
+                    const src = img.src || img.getAttribute('src');
+                    const alt = img.alt || img.getAttribute('alt') || '图片';
+                    if (src) {
+                        const markdownImg = `![${alt}](${src})`;
+                        img.outerHTML = markdownImg;
+                    }
+                });
+                
+                // 基本的HTML到Markdown转换
+                let markdown = tempDiv.innerHTML
+                    // 标题转换
+                    .replace(/<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi, (match, level, text) => {
+                        return '\n' + '#'.repeat(parseInt(level)) + ' ' + text.trim() + '\n\n';
+                    })
+                    // 粗体转换
+                    .replace(/<(strong|b)[^>]*>(.*?)<\/(strong|b)>/gi, '**$2**')
+                    // 斜体转换
+                    .replace(/<(em|i)[^>]*>(.*?)<\/(em|i)>/gi, '*$2*')
+                    // 链接转换（但排除已经是图片的链接）
+                    .replace(/<a[^>]*href="([^"]*)"[^>]*>((?:(?!<img).)*?)<\/a>/gi, '[$2]($1)')
+                    // 段落转换
+                    .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+                    // 换行转换
+                    .replace(/<br[^>]*\/?>/gi, '\n')
+                    // 列表转换
+                    .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
+                    .replace(/<\/?(ul|ol)[^>]*>/gi, '\n')
+                    // 代码转换
+                    .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
+                    .replace(/<pre[^>]*><code[^>]*>(.*?)<\/code><\/pre>/gi, '\n```\n$1\n```\n')
+                    .replace(/<pre[^>]*>(.*?)<\/pre>/gi, '\n```\n$1\n```\n')
+                    // 引用转换
+                    .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '\n> $1\n')
+                    // 表格转换（基础支持）
+                    .replace(/<table[^>]*>(.*?)<\/table>/gi, '\n$1\n')
+                    .replace(/<tr[^>]*>(.*?)<\/tr>/gi, '|$1|\n')
+                    .replace(/<t[hd][^>]*>(.*?)<\/t[hd]>/gi, ' $1 |')
+                    // 清理HTML标签
+                    .replace(/<[^>]*>/g, '')
+                    // HTML实体解码
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'")
+                    // 清理多余空行
+                    .replace(/\n{3,}/g, '\n\n')
+                    // 清理行首行尾空格
+                    .replace(/^[ \t]+|[ \t]+$/gm, '');
+                
+                console.log('转换后的Markdown:', markdown.substring(0, 500));
+                return markdown.trim();
+            }
+
+            // 在光标位置插入内容
+            insertAtCursor(textarea, text) {
+                const cursorPos = textarea.selectionStart;
+                const textBefore = textarea.value.substring(0, cursorPos);
+                const textAfter = textarea.value.substring(cursorPos);
+                
+                textarea.value = textBefore + text + textAfter;
+                textarea.focus();
+                textarea.setSelectionRange(cursorPos + text.length, cursorPos + text.length);
+            }
+
+            handleImageFiles(files) {
+                files.forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const base64Data = e.target.result;
+                        const fileName = file.name.replace(/\s+/g, '_');
+                        const altText = fileName.split('.')[0];
+                        
+                        // 保持完整的base64数据，不转换为占位符
+                        const markdownImage = `![${altText}](${base64Data})\n\n`;
+                        const contentTextarea = document.getElementById('onlineContent');
+                        const cursorPos = contentTextarea.selectionStart;
+                        const textBefore = contentTextarea.value.substring(0, cursorPos);
+                        const textAfter = contentTextarea.value.substring(cursorPos);
+                        
+                        contentTextarea.value = textBefore + markdownImage + textAfter;
+                        contentTextarea.focus();
+                        contentTextarea.setSelectionRange(cursorPos + markdownImage.length, cursorPos + markdownImage.length);
+                        
+                        this.showMessage(`图片 "${fileName}" 已插入（保持原始格式）`, 'success');
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            addArticle() {
+                const title = document.getElementById('onlineTitle').value.trim();
+                const url = document.getElementById('onlineUrl').value.trim();
+                const description = document.getElementById('onlineDescription').value.trim();
+                const content = document.getElementById('onlineContent').value.trim();
+                const tagsInput = document.getElementById('onlineTags').value.trim();
+                const rating = parseInt(document.getElementById('onlineRating').value);
+
+                if (!title || !content) {
+                    this.showMessage('请填写文章标题和内容', 'error');
+                    return;
+                }
+
+                const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+
+                const newArticle = {
+                    id: Date.now(),
+                    title,
+                    url: url || '',
+                    description: description || '暂无描述',
+                    content,
+                    tags,
+                    rating,
+                    date: new Date().toISOString()
+                };
+
+                this.articles.unshift(newArticle);
+                this.saveArticles();
+                this.renderArticles();
+                this.clearForm();
+                
+                this.showMessage('文章发布成功！已在主页面生效', 'success');
+            }
+
+            saveArticles() {
+                localStorage.setItem('articles', JSON.stringify(this.articles));
+            }
+
+            renderArticles() {
+                const container = document.getElementById('onlineArticlesList');
+                
+                if (this.articles.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; color: #666;">暂无文章</p>';
+                    return;
+                }
+                
+                container.innerHTML = this.articles.map(article => `
+                    <div class="admin-article-item">
+                        <div class="admin-article-info">
+                            <h3>${article.title}</h3>
+                            <p><strong>摘要:</strong> ${article.description}</p>
+                            <p><strong>标签:</strong> ${article.tags.join(', ') || '无'}</p>
+                            <p><strong>评分:</strong> ${'⭐'.repeat(article.rating)}</p>
+                            <p><strong>发布时间:</strong> ${new Date(article.date).toLocaleString('zh-CN')}</p>
+                        </div>
+                        <div class="admin-article-actions">
+                            <button class="preview-btn" onclick="onlineAdmin.previewArticle(${article.id})">
+                                预览
+                            </button>
+                            <button class="delete-btn" onclick="onlineAdmin.deleteArticle(${article.id})">
+                                删除
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            previewArticle(id) {
+                const article = this.articles.find(a => a.id === id);
+                if (!article) return;
+
+                const previewWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+                const htmlContent = marked.parse(article.content);
+                
+                previewWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html lang="zh-CN">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>预览: ${article.title}</title>
+                        <link rel="stylesheet" href="css/style.css">
+                        <style>
+                            body { padding: 2rem; background: #f8f9fa; }
+                            .preview-container { 
+                                max-width: 800px; margin: 0 auto; background: white; 
+                                padding: 2rem; border-radius: 10px; 
+                                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="preview-container">
+                            <h1>${article.title}</h1>
+                            <div class="article-content">${htmlContent}</div>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                previewWindow.document.close();
+            }
+
+            deleteArticle(id) {
+                if (confirm('确定要删除这篇文章吗？')) {
+                    this.articles = this.articles.filter(article => article.id !== id);
+                    this.saveArticles();
+                    this.renderArticles();
+                    this.showMessage('文章已删除', 'success');
+                }
+            }
+
+            cleanupContent() {
+                const contentTextarea = document.getElementById('onlineContent');
+                let content = contentTextarea.value;
+                
+                if (!content.trim()) {
+                    this.showMessage('请先输入内容', 'error');
+                    return;
+                }
+                
+                let cleaned = content
+                    .replace(/\n{3,}/g, '\n\n')
+                    .replace(/^[ \t]+|[ \t]+$/gm, '')
+                    .replace(/\r\n/g, '\n');
+                
+                contentTextarea.value = cleaned;
+                this.showMessage('内容已清理完成！', 'success');
+            }
+
+            fixImageLinks() {
+                const contentTextarea = document.getElementById('onlineContent');
+                let content = contentTextarea.value;
+                
+                if (!content.trim()) {
+                    this.showMessage('请先输入内容', 'error');
+                    return;
+                }
+                
+                let fixCount = 0;
+                
+                // 修复各种可能的图片链接格式
+                let fixed = content
+                    // 修复 [图片](链接) 格式
+                    .replace(/\[图片\]\(([^)]+)\)/g, (match, url) => {
+                        fixCount++;
+                        return `![图片](${url})`;
+                    })
+                    // 修复 【图片】(链接) 格式
+                    .replace(/【图片】\(([^)]+)\)/g, (match, url) => {
+                        fixCount++;
+                        return `![图片](${url})`;
+                    })
+                    // 修复 [image](链接) 格式
+                    .replace(/\[image\]\(([^)]+)\)/gi, (match, url) => {
+                        fixCount++;
+                        return `![图片](${url})`;
+                    })
+                    // 修复可能的链接格式，如果URL指向图片
+                    .replace(/\[([^\]]*)\]\((https?:\/\/[^\s)]+\.(jpg|jpeg|png|gif|webp|svg|bmp)[^\s)]*)\)/gi, (match, text, url) => {
+                        fixCount++;
+                        return `![${text || '图片'}](${url})`;
+                    })
+                    // 修复直接的图片URL（单独一行）
+                    .replace(/^(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg|bmp)[^\s]*)$/gim, (match, url) => {
+                        fixCount++;
+                        return `![图片](${url})`;
+                    })
+                    // 修复可能被识别为普通链接的图片
+                    .replace(/\[([^\]]*)\]\(([^)]*(?:jpg|jpeg|png|gif|webp|svg|bmp)[^)]*)\)/gi, (match, text, url) => {
+                        if (!match.startsWith('![')) {
+                            fixCount++;
+                            return `![${text || '图片'}](${url})`;
+                        }
+                        return match;
+                    });
+                
+                if (fixCount > 0) {
+                    contentTextarea.value = fixed;
+                    this.showMessage(`已修复 ${fixCount} 个图片链接格式`, 'success');
+                } else {
+                    this.showMessage('未找到需要修复的图片链接', 'info');
+                }
+            }
+
+            convertImageLinks() {
+                const contentTextarea = document.getElementById('onlineContent');
+                let content = contentTextarea.value;
+                
+                if (!content.trim()) {
+                    this.showMessage('请先输入内容', 'error');
+                    return;
+                }
+                
+                let imageCount = 0;
+                const converted = content.replace(/!\[([^\]]*)\]\(data:image\/[^;]+;base64,[^)]+\)/g, (match, alt) => {
+                    imageCount++;
+                    return `![${alt || `图片_${imageCount}`}](本地图片_${imageCount})`;
+                });
+                
+                if (imageCount > 0) {
+                    contentTextarea.value = converted;
+                    this.showMessage(`已转换 ${imageCount} 个图片链接为占位符`, 'success');
+                } else {
+                    this.showMessage('未找到需要转换的图片链接', 'info');
+                }
+            }
+
+            exportData() {
+                const dataStr = JSON.stringify(this.articles, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `articles-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                this.showMessage('数据导出成功！', 'success');
+            }
+
+            importData(file) {
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (Array.isArray(data)) {
+                            this.articles = data;
+                            this.saveArticles();
+                            this.renderArticles();
+                            this.showMessage('数据导入成功！', 'success');
+                        } else {
+                            this.showMessage('数据格式错误', 'error');
+                        }
+                    } catch (error) {
+                        this.showMessage('文件格式错误', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            clearForm() {
+                document.getElementById('onlineArticleForm').reset();
+            }
+
+            showMessage(text, type = 'info') {
+                const message = document.createElement('div');
+                message.className = `message message-${type}`;
+                message.textContent = text;
+                document.body.appendChild(message);
+                setTimeout(() => {
+                    if (message.parentNode) {
+                        message.parentNode.removeChild(message);
+                    }
+                }, 3000);
+            }
+        }
+
+        // 全局变量
+        let onlineAdmin;
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            onlineAdmin = new OnlineAdminManager();
+        });
+    </script>
+</body>
+</html>
