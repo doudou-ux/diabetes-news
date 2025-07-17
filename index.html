@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章收录 - 我的阅读分享</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- 引入marked.js用于markdown解析 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    <script>
+        // 备用加载方案
+        if (typeof marked === 'undefined') {
+            console.log('主CDN加载失败，尝试备用CDN...');
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/marked@4.3.0/marked.min.js';
+            document.head.appendChild(script);
+        }
+    </script>
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <h1>📚 星空下的尘--好文收录</h1>
+            <p>一起进步</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索文章标题或标签..." style="margin: auto;">
+        </div>
+
+        <div class="filter-tags">
+            <button class="tag-filter active" data-tag="all">全部</button>
+        </div>
+
+        <!-- 文章列表视图 -->
+        <div id="articlesListView">
+            <div id="loadingArticles" class="loading-articles">
+                <p>📚 正在加载文章...</p>
+            </div>
+
+            <div id="articlesContainer" class="articles-grid" style="display: none;">
+                <!-- 文章列表将在这里动态生成 -->
+            </div>
+
+            <div id="noArticles" class="no-articles" style="display: none;">
+                <p>暂无文章，敬请期待...</p>
+            </div>
+        </div>
+
+        <!-- 文章详情视图 -->
+        <div id="articleDetailView" class="article-detail" style="display: none;">
+            <div class="article-controls">
+                <button id="backToList" class="back-btn">← 返回文章列表</button>
+                <button id="fixImages" class="fix-images-btn">🖼️ 修复图片显示</button>
+                <button id="smartFormat" class="smart-format-btn">✨ 智能格式化</button>
+            </div>
+            <article id="articleContent" class="article-content">
+                <!-- 文章详情内容将在这里显示 -->
+            </article>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 我的文章收录. 用心分享好内容.</p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+
+</html>
